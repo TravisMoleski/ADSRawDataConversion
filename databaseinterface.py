@@ -244,12 +244,12 @@ class DatabaseDynamo(DatabaseInterface):
         #                     aws_secret_access_key="anything",
         #                     region_name="us-west-2")
         
-        akey = env.get('access_key_id')
-        skey = env.get('secret_access_key')
+        # akey = env.get('access_key_id')
+        # skey = env.get('secret_access_key')
         
         ddb = boto3.resource('dynamodb', endpoint_url=self.uristring,#dynamodb.us-east-2.amazonaws.com:443
-                             aws_access_key_id=akey,
-                             aws_secret_access_key=skey,
+                             aws_access_key_id='123',
+                             aws_secret_access_key='123',
                              region_name="us-east-2", )
         
         self.ddb = ddb

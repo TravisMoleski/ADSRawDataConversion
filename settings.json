@@ -1,0 +1,42 @@
+{
+    "metadata":{
+		"vehicleID": "OUPacifica",
+		"experimentID": 34,
+		"driver": 2,
+		"other": {
+				"Notes": "682 and union turn too wide",
+				"Weather": "71 F, partly cloudy, dry road",
+				"Map": "ohio_athens_Blue_v4a"
+			}
+    },
+        "file":
+    {
+        "type": "cyber",
+        "folder": "/media/travis/moleski1/cyber_bags/1698251665",
+        "filebase": "20231025123425.record."
+    },
+    "database":
+    {
+        "type": "dynamo",
+        "uri": "http://localhost:5000",
+        "collection": "cyber_aws",
+        "databasename": "cyber_aws_db",
+        "metatablename": "cyber_aws_meta",
+        "batch": true,
+        "throughputSleep": 20
+    },
+    "channelList":{
+        "deny": [
+            "/apollo/sensor/camera/front_6mm/image",
+            "/apollo/sensor/camera/front_6mm/image/compressed",
+            "/apollo/sensor/camera/front_25mm/image",
+            "/apollo/sensor/camera/front_25mm/image/compressed",
+            "/apollo/sensor/velodyne32/PointCloud2",
+            "/apollo/sensor/velodyne32/VelodyneScan",
+            "/apollo/planning",
+            "/apollo/prediction",
+            "/apollo/perception",
+            "/apollo/perception/obstacles"
+        ]
+    }
+ }

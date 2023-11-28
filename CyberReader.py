@@ -25,6 +25,8 @@ class CyberReader:
     def ScanChannelFolder(self):
         all_channels = []
         filelist = glob.glob(os.path.join(self.foldername,self.basefilename+"*"))
+
+
         print(os.path.join(self.foldername,self.basefilename+"*"))
         print(filelist)
         for file in filelist:
@@ -129,6 +131,9 @@ class CyberReader:
 
         unique_channels = []
         filelist = glob.glob(os.path.join(self.foldername,self.basefilename + "*"))
+        filelist = sorted(filelist)
+
+
         self.totalmessagecount = 0
         filecount = 0
         for filename in filelist:
@@ -183,11 +188,27 @@ class CyberReader:
                 #check the insert was good
                 logging.info(f"Looking for meta object again {specificmeta[timeName]}")
 
-                metadata_search = dbobject.db_find_metadata_by_id(dbobject.metatablename, insert_result)
-                if(metadata_search == None):
-                    logging.error(f"metadata check from cyber failed {filename}")
-                    return -1
-                logging.info(f"Meta object found again {specificmeta[timeName]}")
+                i = 0
+                max = 10
+                while i < max:
+                    # print(i)
+                    if i == max:
+                        logging.error(f"metadata check from cyber failed {filename}")
+                        return -1
+                    try:
+                        metadata_search = dbobject.db_find_metadata_by_id(dbobject.metatablename, insert_result)
+                        if(metadata_search == None):
+                            logging.error(f"metadata check from cyber failed {filename}")
+                            sys.exit(1)
+                            return -1
+                        else:
+                            logging.info(f"Meta object found again {specificmeta[timeName]}")
+                            break
+                        # logging.info(f"Meta object found again {specificmeta[timeName]}")
+                    except:
+                        logging.warning(f"LOOKING FOR METADATA FOR {i} th time")
+                    i += 1
+                    time.sleep(0.1)
 
             elif not forceInsert:
                 logging.warning(f"metadata for {filename} already exists, data most likely is already present. Override with --force")
