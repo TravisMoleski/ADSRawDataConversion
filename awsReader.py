@@ -43,6 +43,9 @@ def main(uri):
             )
         else: 
             response = cyber_table.scan(TableName= tables[0].name)
+
+
+            
         last_evaluated_key = response.get('LastEvaluatedKey')
         data.extend(response['Items'])
         if not last_evaluated_key:
