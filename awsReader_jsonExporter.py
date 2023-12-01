@@ -41,7 +41,7 @@ class DynamoDB_Query:
         queryStartTime = time.time()
         topic_export_string = topic.replace('/','_')
         
-        pose_response = table.query(
+        response = table.query(
             IndexName='TopicIndex',  # Specify the name of the global secondary index
             KeyConditionExpression=Key('topic').eq(topic)
         )
@@ -50,13 +50,13 @@ class DynamoDB_Query:
         while True:
             
             if last_evaluated_key:
-                pose_response = table.query(
+                response = table.query(
                     IndexName='TopicIndex',
                     KeyConditionExpression=Key('topic').eq(topic),
                     ExclusiveStartKey=last_evaluated_key
                 )
             else:
-                pose_response = table.query(
+                response = table.query(
                     IndexName='TopicIndex',
                     KeyConditionExpression=Key('topic').eq(topic)
                 )
@@ -65,15 +65,15 @@ class DynamoDB_Query:
             json_file_name = os.path.join(json_export_folder, json_file_name)
                         
             with open(json_file_name, 'w') as json_file:
-                json.dump(pose_response, json_file, indent=2, cls=DecimalEncoder)
+                json.dump(response, json_file, indent=2, cls=DecimalEncoder)
             json_idx += 1
             
-            last_evaluated_key = pose_response.get('LastEvaluatedKey')
+            last_evaluated_key = response.get('LastEvaluatedKey')
 
             if not last_evaluated_key:
                 break
             
-            print(f"Found... {len(pose_response)} entries for table: {table} in key {last_evaluated_key}")
+            print(f"Found... {len(response)} entries for table: {table} in key {last_evaluated_key}")
 
 
         queryEndTime = time.time() - queryStartTime
