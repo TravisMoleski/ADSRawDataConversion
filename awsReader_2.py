@@ -3,9 +3,9 @@ from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
 import logging
 from matplotlib import pyplot as plt
- 
 import time
- 
+
+
 scriptStart = time.time()
  
 # Create a DynamoDB local client
@@ -22,7 +22,7 @@ print(type(table))
  
 response = table.query(
     IndexName='TopicIndex',  # Specify the name of the global secondary index
-    KeyConditionExpression=Key('topic').eq('/apollo/sensors/gnss/pose')
+    KeyConditionExpression=Key('topic').eq('/apollo/localization/pose')
 )
 
 
@@ -31,7 +31,6 @@ responses = []
 
 while True:
     print("Found...", len(responses), " entries for table:", table)
-    time.sleep(1)
     
     if last_evaluated_key:
         response = table.query(
@@ -50,10 +49,7 @@ while True:
 
     if not last_evaluated_key:
         break
-
     
-    time.sleep(1)
-
 queryTime = time.time() - scriptStart
 
 print("QUERY TIME:", queryTime)
