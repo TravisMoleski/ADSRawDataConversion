@@ -4,8 +4,8 @@ import sys
 import struct
 import google.protobuf as protobuf
 import google.protobuf.descriptor_pb2 as descriptor_pb2
-import apollopy.proto.record_pb2 as record_pb2
-import apollopy.proto.proto_desc_pb2 as proto_desc_pb2
+import record_pb2
+import proto_desc_pb2
 import json
 from google.protobuf.json_format import MessageToJson
 

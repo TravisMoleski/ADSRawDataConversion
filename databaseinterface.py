@@ -354,12 +354,12 @@ class DatabaseDynamo(DatabaseInterface):
     def CheckAllTables(self):
         tables = list(self.ddb.tables.all())
         logging.info(tables)
-        logging.info(f"Checking for table{self.metatablename}")
+        logging.info(f"Checking for table {self.metatablename}")
         result = self.checkTableExistsCreateIfNot(self.metatablename)
         if result == -1:
             logging.info("Table check/create issue")
             sys.exit()
-        logging.info(f"Checking for table{self.cname}")
+        logging.info(f"Checking for table {self.cname}")
         result = self.checkTableExistsCreateIfNot(self.cname)
         if result == -1:
             logging.info("Table check/create issue")
@@ -367,6 +367,7 @@ class DatabaseDynamo(DatabaseInterface):
         return 0  
      
     def checkTableExistsCreateIfNot(self, tname):
+        
         ddb = self.ddb
         # dynamo only has tables, not dbs+collections, so the collection is table here
         ttable = self.ddb.Table(tname)
@@ -388,36 +389,91 @@ class DatabaseDynamo(DatabaseInterface):
             createTable = True
 
         if (createTable):
-            try:
-                ttable = ddb.create_table(TableName=tname,
-                                          KeySchema=[
-                                              {
-                                                  'AttributeName': '_id',
-                                                  'KeyType': 'HASH'
-                                              },
-                                              {
-                                                  'AttributeName': 'time',
-                                                  'KeyType': 'RANGE'
-                                              }
-                                          ],
-                                          AttributeDefinitions=[
-                                              {
-                                                  'AttributeName': '_id',
-                                                  'AttributeType': 'S'
-                                              },
-                                              {
-                                                  'AttributeName': 'time',
-                                                  'AttributeType': 'N'
-                                              }
-                                          ],
-                                          ProvisionedThroughput={'ReadCapacityUnits': 1, 'WriteCapacityUnits': 1}
-                                          )
-                logging.info("Waiting for table creation")
-                response = ttable.wait_until_exists()
-                return 1
-            except:
-                logging.info("failed to create table")
-                return -1
+            # try:
+            
+            # ttable = ddb.create_table(TableName=tname,
+            #                             KeySchema=[
+            #                                 {
+            #                                     'AttributeName': '_id',
+            #                                     'KeyType': 'HASH'
+            #                                 },
+            #                                 {
+            #                                     'AttributeName': 'time',
+            #                                     'KeyType': 'RANGE'
+            #                                 }
+            #                             ],
+            #                             AttributeDefinitions=[
+            #                                 {
+            #                                     'AttributeName': '_id',
+            #                                     'AttributeType': 'S'
+            #                                 },
+            #                                 {
+            #                                     'AttributeName': 'time',
+            #                                     'AttributeType': 'N'
+            #                                 },
+            #                                 {
+            #                                     'AttributeName': 'topic',
+            #                                     'AttributeType': 'S'
+            #                                 }
+            #                             ],
+            #                             GlobalSecondaryIndexes=[
+            #                                 {
+            #                                     'IndexName': 'TopicIndex',
+            #                                     'KeySchema': [
+            #                                         {'AttributeName': 'topic', 'KeyType': 'HASH'}
+            #                                     ],
+            #                                     'Projection': {'ProjectionType': 'ALL'},
+            #                                     'ProvisionedThroughput': {'ReadCapacityUnits': 1, 'WriteCapacityUnits': 1}
+            #                                 }
+            #                             ],
+            #                             ProvisionedThroughput={'ReadCapacityUnits': 1, 'WriteCapacityUnits': 1}
+            #                             )
+            # logging.info("Waiting for table creation")
+            # response = ttable.wait_until_exists()
+            # return 1
+            ttable = ddb.create_table(
+                TableName=tname,
+                KeySchema=[
+                    {
+                        'AttributeName': '_id',
+                        'KeyType': 'HASH'
+                    },
+                    {
+                        'AttributeName': 'time',
+                        'KeyType': 'RANGE'
+                    }
+                ],
+                AttributeDefinitions=[
+                    {
+                        'AttributeName': '_id',
+                        'AttributeType': 'S'
+                    },
+                    {
+                        'AttributeName': 'time',
+                        'AttributeType': 'N'
+                    },
+                    {
+                        'AttributeName': 'topic',
+                        'AttributeType': 'S'
+                    }
+                ],
+                GlobalSecondaryIndexes=[
+                    {
+                        'IndexName': 'TopicIndex',
+                        'KeySchema': [
+                            {'AttributeName': 'topic', 'KeyType': 'HASH'}
+                        ],
+                        'Projection': {'ProjectionType': 'ALL'},
+                        'ProvisionedThroughput': {'ReadCapacityUnits': 1, 'WriteCapacityUnits': 1}
+                    }
+                ],
+                ProvisionedThroughput={'ReadCapacityUnits': 1, 'WriteCapacityUnits': 1}
+        )
+
+        
+            # except:
+                # logging.info("failed to create table")
+                # return -1
         return 0
 
 

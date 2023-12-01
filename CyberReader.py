@@ -132,7 +132,7 @@ class CyberReader:
         unique_channels = []
         filelist = glob.glob(os.path.join(self.foldername,self.basefilename + "*"))
         filelist = sorted(filelist)
-
+        # filelist = filelist[0:2]
 
         self.totalmessagecount = 0
         filecount = 0
@@ -225,7 +225,7 @@ class CyberReader:
             #setup batch, if requested
             if(batch):
                 batchobject = dbobject.db_getBatchWriter()
-                print('using batch mode')
+                # print('using batch mode')
  
             while reader.ReadMessage(message):
                 self.totalmessagecount = self.totalmessagecount + 1
