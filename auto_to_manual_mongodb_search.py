@@ -132,14 +132,18 @@ class GetDisengagmentLocation():
         self.dt = dt
         
         self.best_pos_data = []
+        self.localization_data = []
         
         self.grabbed_best_pos_data = []
+        self.grabbed_localization_data = []
         
         self.best_pos_query = {'topic': '/apollo/sensor/gnss/best_pose'}
-        # self.odometry_query = {'topic': '/apollo/sensor/gnss/odometry'}
+        self.localization_query = {'topic': '/apollo/localization/pose'}
         
         self.getBestPoseData()
-        self.getLocation()
+        self.getLocalizationData()
+        self.getLocationBestPos()
+        self.getLocationLocalization()
         
     def getBestPoseData(self):
         
@@ -190,20 +194,44 @@ class GetDisengagmentLocation():
                 ))
                 
         self.best_pos_data = sorted(self.best_pos_data, key= lambda x: x[0])
-                
+        
         # DEBUG csv export 
         # self.csvBestPoseExport()
         # print(self.best_pos_data)
         
+    def getLocalizationData(self):
         
-    def getLocation(self):
+        if mycol.find_one(self.localization_query) is not None:
+            
+            cursor = mycol.find(self.localization_query)
+            
+            for data in cursor: 
+                
+                timestamp = float(data['header']['timestampSec'])
+                position_x = float(data['pose']['position']['x'])
+                position_y = float(data['pose']['position']['y'])
+                position_z = float(data['pose']['position']['z'])
+                
+                self.localization_data.append((
+                    timestamp,
+                    position_x,
+                    position_y,
+                    position_z
+                ))
+                
+            self.localization_data = sorted(self.localization_data, key = lambda x: x[0])
+            
+            # print(self.localization_data)
+            
+        
+    def getLocationBestPos(self):
         
         instance_value = 0
 
         for row in self.auto_times:
             
-            print(self.best_pos_data[0][0])
-            print(type(self.best_pos_data[0][0])) 
+            # print(self.best_pos_data[0][0])
+            # print(type(self.best_pos_data[0][0])) 
                   
             start_time, end_time = row
 
@@ -227,14 +255,41 @@ class GetDisengagmentLocation():
                 
             instance_value += 1
             
-            
-        print(self.grabbed_best_pos_data)
-                
+        # print(self.grabbed_best_pos_data)
+        
+    def getLocationLocalization(self):
+        
+        instance_value = 0
 
+        for row in self.auto_times:
             
+            # print(self.localization_data[0][0])
+            # print(type(self.localization_data[0][0])) 
+                  
+            start_time, end_time = row
+
+            end_time_start = float(end_time) - self.dt
+            end_time_end = float(end_time) + self.dt
             
+            start_idx_to_grab = min(range(len(self.localization_data)),
+                            key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_start)))
             
-    
+            end_idx_to_grab = min(range(len(self.localization_data)),
+                            key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_end)))
+
+            # print(start_idx_to_grab, end_idx_to_grab)
+            
+            for idx in range(start_idx_to_grab, end_idx_to_grab):
+                
+                self.grabbed_localization_data.append((
+                    instance_value,
+                    self.localization_data[idx]
+                ))
+                
+            instance_value += 1
+            
+        print(self.grabbed_localization_data)
+        
     
     def csvBestPoseExport(self):
 
@@ -246,10 +301,10 @@ class GetDisengagmentLocation():
 
             # Write the header
             header = [
-                "Latitude", "Longitude", "LatitudeStdDev", "LongitudeStdDev", "HeightStdDev",
+                "Timestamp", "Latitude", "Longitude", "LatitudeStdDev", "LongitudeStdDev", "HeightStdDev",
                 "GalileoBeidouUsedMask", "SolutionAge", "ExtendedSolutionStatus", "SolStatus",
                 "HeightMsl", "BaseStationId", "NumSatsTracked", "NumSatsInSolution", "SolType",
-                "DatumId", "NumSatsL1", "DifferentialAge", "Timestamp"
+                "DatumId", "NumSatsL1", "DifferentialAge" 
             ]
             csv_writer.writerow(header)
 
@@ -257,6 +312,25 @@ class GetDisengagmentLocation():
             csv_writer.writerows(self.best_pos_data)
 
         print(f'Data has been exported to {bestpos_csv_file}')
+        
+    def csvLocalizationExport(self):
+
+        localization_csv_file = str(round(time.time())) +  '_localization.csv'
+
+        with open(localization_csv_file, 'w', newline='') as csvfile:
+            # Create a CSV writer object
+            csv_writer = csv.writer(csvfile)
+
+            # Write the header
+            header = [
+                "Timestamp", "x", "y", "z"
+            ]
+            csv_writer.writerow(header)
+
+            # Write the data
+            csv_writer.writerows(self.best_pos_data)
+
+        print(f'Data has been exported to {localization_csv_file}')
 
             
             
@@ -272,7 +346,8 @@ if __name__ == '__main__':
     auto_times = auto_times_instance.auto_times
         
     disengagment_instance = GetDisengagmentLocation(auto_times, dt)
-    disengagment_instance.getLocation()
+    disengagment_instance.getLocationBestPos()
+    disengagment_instance.getLocationLocalization()
 
     
     
