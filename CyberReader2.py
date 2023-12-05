@@ -1,0 +1,293 @@
+import os
+import sys
+import glob
+import json
+from datetime import datetime
+import cyberreaderlib as cyberreader
+from google.protobuf.json_format import MessageToJson
+from databaseinterface import DatabaseDynamo, DatabaseMongo
+import pyprog
+import logging
+import time
+import uuid
+import breakup_lib as bu
+
+from decimal import Decimal, DecimalException
+
+class CyberReader:
+    def __init__(self, foldername=None, basefilename=None):
+        self.foldername = foldername
+        self.basefilename = basefilename
+        self.message = cyberreader.RecordMessage()
+        self.reader = None
+        self.pbfactory = None
+        self.unique_channels = None
+        self.filelist = None
+        self.message_process_count = 0
+        self.totalmessagecount = 0
+
+    def ScanChannelFolder(self):
+        all_channels = []
+        filelist = glob.glob(os.path.join(self.foldername,self.basefilename+"*"))
+        print(os.path.join(self.foldername,self.basefilename+"*"))
+        # print(filelist)
+        for file in filelist:
+            new_channels = []
+            new_channels = self.ScanChannelsSingleFile(file)
+            #print(len(new_channels))
+            all_channels = list(set(all_channels + new_channels))
+        self.unique_channels = all_channels
+        return all_channels
+    
+    def ScanChannelsSingleFile(self, filename):
+        unqiue_channel = []
+        self.pbfactory = cyberreader.ProtobufFactory()
+        reader = cyberreader.RecordReader(filename)
+        for channel in reader.GetChannelList():
+            desc = reader.GetProtoDesc(channel)
+            self.pbfactory.RegisterMessage(desc)
+            unqiue_channel.append(channel)
+            #print(channel)
+        self.unique_channels = unqiue_channel
+        self.reader = None
+        return unqiue_channel
+
+       
+    def InsertDataFromFolder(self, dbobject, metadatasource,
+                             channelList=None,
+                             forceInsert=False,
+                             batch=False):
+        
+        logging.info("Scanning folder to get list of all channels:")
+        all_channels = self.ScanChannelFolder()
+        for channel in all_channels:
+            print(channel)
+        
+        logging.info("Inserting cyberdata from folder " + self.foldername)
+
+        unique_channels = []
+        filelist = sorted(glob.glob(os.path.join(self.foldername,self.basefilename + "*")))
+        # filelist = filelist[2:3]
+        
+        self.totalmessagecount = 0
+        filecount = 0
+        groupMetaDataID = str(uuid.uuid1())
+        for filename in filelist:
+            filecount = filecount + 1
+            pbfactory = cyberreader.ProtobufFactory()
+            reader = cyberreader.RecordReader(filename)
+            for channel in reader.GetChannelList():
+                desc = reader.GetProtoDesc(channel)
+                pbfactory.RegisterMessage(desc)
+                unique_channels.append(channel)
+            
+            deny_channels=None
+            allow_channels=None
+            if(channelList != None):
+                if(channelList['deny'] != None):
+                    deny_channels=channelList['deny']
+                if(channelList['allow'] != None):
+                    allow_channels=channelList['allow']
+            if(allow_channels == None):
+                allow_channels = set(unique_channels)
+            #run check that gives priority to deny
+            for deny in deny_channels:
+                if(deny in allow_channels):
+                    allow_channels.remove(deny)
+            #have to wait until startime is found for each file
+            logging.info(f"Checking cyber metadata for file {filename}")
+        
+            #timeName = 'startTime'
+            timeName = 'time'
+            specificmeta = {
+                'filename': filename,
+                'foldername': self.foldername,
+                timeName: reader.header.begin_time,#datetime.utcfromtimestamp(reader.header.begin_time/1000000000),
+                'endTime': reader.header.end_time,#datetime.utcfromtimestamp(reader.header.end_time/1000000000),
+                'msgnum': reader.header.message_number,
+                'size': reader.header.size,
+                'topics': unique_channels,
+                #'deny': deny_channels, #having the full list and deny/accept was too much for mongo
+                #'allow': allow_channels,
+                'type': 'cyber',
+                'groupID': groupMetaDataID 
+            }
+            specificmeta.update(metadatasource)
+            #print(specificmeta)
+            logging.info(f"Looking for meta object {specificmeta[timeName]}")
+            metadata_search = dbobject.db_find_metadata_by_startTime(dbobject.metatablename, specificmeta[timeName])
+            if(metadata_search == None):
+                logging.info(f"Did not find it, so inserting meta object {specificmeta[timeName]}")
+                insert_result = dbobject.db_insert(dbobject.metatablename, specificmeta)
+                if(insert_result == -1):
+                    logging.error(f"metadata insert from cyber failed {filename}")
+                    return -1
+                #check the insert was good
+                logging.info(f"Looking for meta object again {specificmeta[timeName]}")
+
+                metadata_search = dbobject.db_find_metadata_by_id(dbobject.metatablename, insert_result)
+                if(metadata_search == None):
+                    logging.error(f"metadata check from cyber failed {filename}")
+                    return -1
+                logging.info(f"Meta object found again {specificmeta[timeName]}")
+
+            elif not forceInsert:
+                logging.warning(f"metadata for {filename} already exists, data most likely is already present. Override with --force")
+                continue
+                           
+            #start the message extract process
+            message = cyberreader.RecordMessage()
+            num_msg = reader.header.message_number
+            logging.info("Inserting data # -> " + str(num_msg))
+            prog = pyprog.ProgressBar("-> ", " OK!", num_msg)
+            prog.update()
+            msgcount = 0
+            numinsert = 0
+            #setup batch, if requested
+            if(batch):
+                batchobject = dbobject.db_getBatchWriter()
+                # print('using batch mode')
+ 
+            while reader.ReadMessage(message):
+                self.totalmessagecount = self.totalmessagecount + 1
+                msgcount = msgcount + 1
+                
+                prog.set_stat(msgcount)
+                prog.update()
+                
+                message_type = reader.GetMessageType(message.channel_name)
+                msg = pbfactory.GenerateMessageByType(message_type)
+                msg.ParseFromString(message.content)
+                if(message.channel_name not in deny_channels and
+                   message.channel_name in allow_channels):
+                    try:
+                        jdata = json.loads(MessageToJson(msg))
+                    except:
+                        logging.exception("json conversion failed")
+                        sys.exit(-1)
+                    
+                    try:
+                        ntime = message.time#datetime.utcfromtimestamp(message.time/1000000000)
+                    except:
+                        logging.exception("cyber time to timestamp failed")
+                        sys.exit(-1)
+                        
+                    newmeta_id = metadata_search
+                    newitem = {
+                        "topic": message.channel_name,
+                        "time": ntime, #remove isoformat todo .isoformat()
+                        "size": len(message.content), 
+                        "msg_type": "",     #msg._type,
+                        "metadataID": newmeta_id,
+                        "groupMetadataID": groupMetaDataID} #todo remove str force 
+                    try:
+                        jdata = json.loads(MessageToJson(msg))
+                    except Exception as e:
+                        logging.exception("cyber message to json failed")
+                        return -1
+                    
+                    newitem.update(jdata)
+                    # if(newitem['topic'] == 'apollo/sensor/gnss/best_pose' or
+                    #     newitem['topic'] == '/apollo/prediction' or
+                    #     newitem['topic'] == "/apollo/prediction/perception_obstacles"):
+                    # js = json.dumps(newitem)
+                    # print("\n"+newitem['topic'])
+                    # print(f"\nRaw: {newitem['size']}")
+                    
+                    
+                    ######################################################
+                    
+                    
+                    # if (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image':
+                    #     print("\n"+newitem['topic'])
+                    #     print(f"\nRaw: {newitem['size']}")
+                        
+                    if (newitem['topic']) == '/apollo/sensor/velodyne32/PointCloud2':
+
+                        broken_lidar_message = bu.breakup_lidar()
+                        broken_lidar_message.breakup(newitem, dbobject)
+
+                    elif (newitem['topic']) == '/apollo/planning' or  (newitem['topic']) == '/apollo/prediction' or  (newitem['topic']) == '/apollo/perception':
+                        
+                        try:
+                            newitem['debug'] = []
+                        except DecimalException as e:
+                            print('Exception caught!')
+                    
+                    elif(newitem['size'] < 400000):
+                        if(batch):
+                            print(newitem)
+                            dbobject.db_putItemBatch(newitem)     
+                        else:
+                            dbobject.db_insert_main(newitem)
+                    elif (newitem['topic']) is not '/apollo/sensor/velodyne32/PointCloud2':
+                        logging.warning(f"Skipping message {newitem['topic']} because of size")
+                    
+                    numinsert = numinsert + 1
+                    
+                    ######################################################
+                    
+                    
+                    
+                    #print("msg[%d]-> channel name: %s; message type: %s; message time: %d, content: %s" % (count, message.channel_name, message_type, message.time, msg))
+                    #
+                    #print(jdata)
+                #else:
+                #    print("Ignore " + message.channel_name)
+            prog.end()
+            print(f"Insert Count:{numinsert}")
+            print(f"Message Count {msgcount}")
+        dbobject.db_close()
+                         
+if __name__ == "__main__":
+    
+    #cr = CyberReader(foldername=sys.argv[1], basefilename=sys.argv[2])
+    # cr = CyberReader('/mnt/h/cyberdata','20221117125313.record.00000')
+    # scan a folder
+    #ch = cr.ScanChannelFolder()
+    #print(ch)
+    
+    # read a single file
+    # cr.SetCurrentFile('20221117125313.record.00000')
+    # msg = 1
+    # while (msg != 0):
+    #     msg = cr.GetNextMessageFromFile()
+    #     print(msg)
+    
+    # read a folder with re-entry
+    # msg = 1
+    # while(msg != None):
+    #     msg = cr.GetNextMessageFromFolder()
+    #     print(cr.message_process_count)
+
+    logging.basicConfig(filename="cyberreader.log", encoding='utf-8', level=logging.DEBUG)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+
+    deny_channels = set([
+        "/apollo/sensor/camera/front_6mm/image",
+        "/apollo/sensor/camera/front_6mm/image/compressed",
+        "/apollo/sensor/camera/front_25mm/image",
+        "/apollo/sensor/camera/front_25mm/image/compressed",
+        "/apollo/sensor/velodyne32/PointCloud2",
+        "/apollo/sensor/velodyne32/VelodyneScan",
+        #"/apollo/prediction/perception_obstacles",
+        #"/apollo/perception/obstacles",
+        #"/apollo/prediction",
+        #"/apollo/planning"
+        ])
+    
+    channelList={
+                'deny': deny_channels,
+                'allow': None
+                }
+    
+    dbobject = DatabaseMongo("mongodb://windows:27017",'cyber')
+    dbobject.setCollectionName("cyber")
+    dbobject.db_connect()
+    metadatasource = {
+                        'vehicleID': 8,
+                        'experimentID': 8,
+                        'other': 0,
+                     }
+    
+    #cr.InsertDataFromFolder(dbobject, metadatasource, channelList, forceInsert=True)
