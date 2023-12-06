@@ -1,5 +1,3 @@
-# from databaseinterface import DatabaseDynamo, DatabaseMongo
-
 class breakup_lidar():
     
     def __init__(self) -> None:

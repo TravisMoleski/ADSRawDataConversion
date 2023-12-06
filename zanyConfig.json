@@ -1,0 +1,66 @@
+{
+    "metadata":{
+        "vehicleID": 2,
+        "experimentID": 1,
+        "other": "BlueRouteTest3"
+    },
+    "file":
+    {
+        "type": "cyber",
+        "folder": "/media/autobuntu/chonk/chonk/git_repos/apollo/10252023_blue_route/",
+        "filebase": "20231025123425.record."
+    },
+    "database":
+    {
+        "type": "dynamo",
+        "uri": "http://localhost:8000",
+        "collection": "coll_test_16",
+        "databasename": "data_test_16",
+        "metatablename": "meta_test_16",
+        "batch": true,
+        "throughputSleep": 20
+    },
+    "channelList":{
+        "deny": [
+            "/apollo/routing_response_history",
+            "/apollo/navigation",
+            "/apollo/prediction/perception_obstacles",
+            "/tf",
+            "/apollo/sensor/camera/front_6mm/image",
+            "/apollo/sensor/gnss/imu",
+            "/apollo/sensor/gnss/gnss_status",
+            "/apollo/localization/pose",
+            "/apollo/sensor/gnss/ins_status",
+            "/tf_static",
+            "/apollo/common/latency_records",
+            "/apollo/canbus/chassis_detail",
+            "/apollo/drive_event",
+            "/apollo/sensor/gnss/rtcm_data",
+            "/apollo/monitor/system_status",
+            "/apollo/sensor/gnss/stream_status",
+            "/apollo/canbus/chassis",
+            "/apollo/sensor/gnss/heading",
+            "/apollo/routing_response",
+            "/apollo/control/pad",
+            "/apollo/routing_request",
+            "/apollo/sensor/velodyne32/PointCloud2",
+            "/apollo/sensor/gnss/rtk_obs",
+            "/apollo/localization/msf_status",
+            "/apollo/common/latency_reports",
+            "/apollo/sensor/camera/front_25mm/image/compressed",
+            "/apollo/sensor/gnss/corrected_imu",
+            "/apollo/sensor/gnss/ins_stat",
+            "/apollo/sensor/gnss/rtk_eph",
+            "/apollo/sensor/camera/front_25mm/image",
+            "/apollo/perception/traffic_light",
+            "/apollo/control",
+            "/apollo/hmi/status",
+            "/apollo/sensor/gnss/best_pose",
+            "/apollo/sensor/gnss/odometry",
+            "/apollo/monitor",
+            "/apollo/perception/obstacles",
+            "/apollo/sensor/velodyne32/VelodyneScan",
+            "/apollo/sensor/gnss/raw_data"
+        ]
+    }
+ }
