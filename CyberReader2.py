@@ -197,26 +197,32 @@ class CyberReader:
                     
                     ######################################################
                     
-                    
-                    # if (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image':
-                    #     print("\n"+newitem['topic'])
-                    #     print(f"\nRaw: {newitem['size']}")
-                        
                     if (newitem['topic']) == '/apollo/sensor/velodyne32/PointCloud2':
 
                         broken_lidar_message = bu.breakup_lidar()
                         broken_lidar_message.breakup(newitem, dbobject)
+                        
+                    elif (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image' or (newitem['topic']) == '/apollo/sensor/camera/front_25mm/image':
+                                                
+                        broken_image_message_06 = bu.breakup_uncompressed_image()
+                        broken_image_message_06.breakup(newitem, dbobject)
+                        
+                    elif (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image/compressed' or (newitem['topic']) == '/apollo/sensor/camera/front_25mm/image/compressed':
+                                                
+                        broken_image_message_06 = bu.breakup_compressed_image()
+                        broken_image_message_06.breakup(newitem, dbobject)
 
                     elif (newitem['topic']) == '/apollo/planning' or  (newitem['topic']) == '/apollo/prediction' or  (newitem['topic']) == '/apollo/perception':
                         
                         try:
                             newitem['debug'] = []
                         except DecimalException as e:
-                            print('Exception caught!')
+                            pass
+                            # print('Exception caught!')
                     
                     elif(newitem['size'] < 400000):
                         if(batch):
-                            print(newitem)
+                            # print(newitem)
                             dbobject.db_putItemBatch(newitem)     
                         else:
                             dbobject.db_insert_main(newitem)
