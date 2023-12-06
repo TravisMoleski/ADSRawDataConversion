@@ -194,23 +194,27 @@ class CyberReader:
                     # print("\n"+newitem['topic'])
                     # print(f"\nRaw: {newitem['size']}")
                     
-                    
                     ######################################################
                     
+                    
+                    # if (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image':
+                    #     print("\n"+newitem['topic'])
+                    #     print(f"\nRaw: {newitem['size']}")
+                        
                     if (newitem['topic']) == '/apollo/sensor/velodyne32/PointCloud2':
 
-                        broken_lidar_message = bu.breakup_lidar()
-                        broken_lidar_message.breakup(newitem, dbobject)
+                        chunkfied_lidar_message = bu.breakup_lidar()
+                        chunkfied_lidar_message.breakup(newitem, dbobject)
                         
                     elif (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image' or (newitem['topic']) == '/apollo/sensor/camera/front_25mm/image':
                                                 
-                        broken_image_message_06 = bu.breakup_uncompressed_image()
-                        broken_image_message_06.breakup(newitem, dbobject)
+                        chunkfied_image_message = bu.breakup_uncompressed_image()
+                        chunkfied_image_message.breakup(newitem, dbobject)
                         
                     elif (newitem['topic']) == '/apollo/sensor/camera/front_6mm/image/compressed' or (newitem['topic']) == '/apollo/sensor/camera/front_25mm/image/compressed':
                                                 
-                        broken_image_message_06 = bu.breakup_compressed_image()
-                        broken_image_message_06.breakup(newitem, dbobject)
+                        chunkfied_image_message = bu.breakup_compressed_image()
+                        chunkfied_image_message.breakup(newitem, dbobject)
 
                     elif (newitem['topic']) == '/apollo/planning' or  (newitem['topic']) == '/apollo/prediction' or  (newitem['topic']) == '/apollo/perception':
                         
@@ -228,8 +232,6 @@ class CyberReader:
                             dbobject.db_insert_main(newitem)
                     elif (newitem['topic']) is not '/apollo/sensor/velodyne32/PointCloud2':
                         logging.warning(f"Skipping message {newitem['topic']} because of size")
-                    
-                    numinsert = numinsert + 1
                     
                     ######################################################
                     
