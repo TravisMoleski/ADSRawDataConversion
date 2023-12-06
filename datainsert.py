@@ -15,7 +15,7 @@ def ProcessRosbagFile(file, dbobject, channelList, metadata, force):
 
 
 def ProcessCyberFile(cyberfolder, cyberfilebase, dbobject, channelList, metadata, force, batch):
-    from CyberReader import CyberReader
+    from CyberReader2 import CyberReader
     cr = CyberReader(cyberfolder, cyberfilebase)
     #check that deny/allow are present and set defaults
     if(channelList != None):

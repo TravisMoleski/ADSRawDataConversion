@@ -13,10 +13,10 @@ from pymongo import MongoClient
 
 # Dynamodb setup
 # Create a DynamoDB local client
-dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
+dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:5000')
  
 # Define the table name
-table_name = 'coll_test_5'
+table_name = 'cyber_aws'
  
 # Get the DynamoDB table
 table = dynamodb.Table(table_name)
@@ -31,7 +31,7 @@ mongo_collection = database[collection_name]
 
 
 # json setup
-json_export_folder = table_name + '_' + str(round(time.time()))
+json_export_folder = "./data/"+table_name + '_' + str(round(time.time()))
 if not os.path.exists(json_export_folder):
     os.makedirs(json_export_folder)
     print(f"Output folder: {json_export_folder}")
@@ -103,11 +103,30 @@ class DynamoDB_Query:
 
 if __name__ == '__main__':
 
-    topics = ['/apollo/localization/pose',
-              '/apollo/perception/traffic_light',
-              '/apollo/sensor/gnss/best_pose',
-              '/apollo/canbus/chassis']
+    # topics = ['/apollo/localization/pose',
+    #           '/apollo/perception/traffic_light',
+    #           '/apollo/sensor/gnss/best_pose',
+    #           '/apollo/canbus/chassis']
     
+    metatable = dynamodb.Table("cyber_aws_meta")
+    response = metatable.scan(
+        TableName= 'cyber_aws_meta',
+        FilterExpression=Key("experimentID").eq(34)
+    )
+    # print(response['Items'][0]['topics'])
+    topics = response['Items'][0]['topics']
+    ignore_list = ["/apollo/control/pad", "/apollo/canbus/chassis_detail", "/tf_static", "/apollo/sensor/gnss/raw_data", 
+                   "/apollo/sensor/gnss/ins_stat","/apollo/sensor/gnss/ins_status","/apollo/sensor/gnss/corrected_imu","/apollo/sensor/gnss/gnss_status"]
     for topic in topics:
-        print(topic)
-        DynamoDB_Query(topic, table_name, table, json_export_folder, mongo_collection)
+        print("Looking for:", topic)
+        # if topic != "/apollo/control/pad" and topic != "/apollo/canbus/chassis_detail" and topic != "/tf_static":
+        try:
+            if topic not in ignore_list:
+                DynamoDB_Query(topic, table_name, table, json_export_folder, mongo_collection)
+            else:
+                print("SKIPPING:", topic)
+        except:
+            print("ERROR UPLOADING TOPIC: ", topic)
+            continue
+    
+    print("DONE")
