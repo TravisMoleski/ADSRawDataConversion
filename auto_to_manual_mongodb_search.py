@@ -11,27 +11,19 @@ dt = 5
     
 ### GET MONGO DATA ###
 ### REPLACE WITH DESIRED MONGODB INFO ###
-myclient = pymongo.MongoClient("mongodb://127.0.0.1:27017")
-mydb = myclient["coll_test_6"]
-mycol = mydb["coll_test_6"]
-metadID = mydb['metadata'].find_one({'experimentID': 13})
-
-        
+myclient = pymongo.MongoClient("mongodb://localhost:27017")
+mydb = myclient["cyber_aws"]
+mycol = mydb["cyber_aws"]
         
 class ChassisSearch:
-    
     def __init__(self):
         
         ### VAR INIT ###
-        
         self.auto_times = []
-        
         self.query = {'topic': '/apollo/canbus/chassis'}
-                
         self.chassis_data = []
         
         ### START SEARCH ###
-        
         self.mongodbSearch()
         self.autoManualSearch()
         
@@ -43,7 +35,6 @@ class ChassisSearch:
             cursor = mycol.find(self.query)
             
             for data in cursor:
-                
                 timestamp = float(data['header']['timestampSec'])
                 drivestate = data['drivingMode']
                 speed = float(data['speedMps'])
@@ -54,41 +45,26 @@ class ChassisSearch:
                 
                 self.chassis_data.append((timestamp, drivestate, speed, steer_rate, steeringPercentage, throttlePercentage, brakePercentage))
 
-                
         self.chassis_data = sorted(self.chassis_data, key= lambda x: x[0])
         # self.csvChassisExport()
         
     def autoManualSearch(self):
-        
         is_auto = False
-        
         for row in self.chassis_data:
-            
-            timestamp, drivestate, speed, steer_rate, steeringPercentage, throttlePercentage, brakePercentage = row
-                        
+            timestamp, drivestate, speed, steer_rate, steeringPercentage, throttlePercentage, brakePercentage = row         
             if drivestate == 'COMPLETE_AUTO_DRIVE' and is_auto is False:
-                
                 is_auto = True
-                
                 auto_time_start = timestamp
                 
             elif drivestate == 'COMPLETE_MANUAL' and is_auto is True:
-                
                 is_auto = False
-                
                 auto_time_end = timestamp
-                
                 self.auto_times.append((auto_time_start, auto_time_end))
-        
-        # self.csvAutoTimesExport()
-        # print(self.auto_times)
-        
+
         return self.auto_times
                 
     def csvAutoTimesExport(self):
-        
         filename = str(round(time.time())) + '_autotimes_check.csv'
-        
         # Open the CSV file in write mode
         with open(filename, 'w', newline='') as csvfile:
             # Create a CSV writer object
@@ -200,25 +176,19 @@ class GetDisengagmentLocation():
         # print(self.best_pos_data)
         
     def getLocalizationData(self):
-        
         if mycol.find_one(self.localization_query) is not None:
-            
             cursor = mycol.find(self.localization_query)
-            
             for data in cursor: 
-                
                 timestamp = float(data['header']['timestampSec'])
                 position_x = float(data['pose']['position']['x'])
                 position_y = float(data['pose']['position']['y'])
                 position_z = float(data['pose']['position']['z'])
-                
                 self.localization_data.append((
                     timestamp,
                     position_x,
                     position_y,
                     position_z
-                ))
-                
+                )) 
             self.localization_data = sorted(self.localization_data, key = lambda x: x[0])
             
             # print(self.localization_data)
@@ -258,37 +228,27 @@ class GetDisengagmentLocation():
         # print(self.grabbed_best_pos_data)
         
     def getLocationLocalization(self):
-        
         instance_value = 0
-
         for row in self.auto_times:
-            
-            # print(self.localization_data[0][0])
-            # print(type(self.localization_data[0][0])) 
-                  
             start_time, end_time = row
 
             end_time_start = float(end_time) - self.dt
-            end_time_end = float(end_time) + self.dt
-            
+            end_time_end   = float(end_time) + self.dt
+
             start_idx_to_grab = min(range(len(self.localization_data)),
                             key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_start)))
             
             end_idx_to_grab = min(range(len(self.localization_data)),
                             key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_end)))
 
-            # print(start_idx_to_grab, end_idx_to_grab)
-            
             for idx in range(start_idx_to_grab, end_idx_to_grab):
-                
                 self.grabbed_localization_data.append((
                     instance_value,
                     self.localization_data[idx]
                 ))
                 
             instance_value += 1
-            
-        print(self.grabbed_localization_data)
+
         
     
     def csvBestPoseExport(self):
@@ -332,110 +292,49 @@ class GetDisengagmentLocation():
 
         print(f'Data has been exported to {localization_csv_file}')
 
-            
-            
-        
-        
-
-
 if __name__ == '__main__':
     
     print('Starting search for auto -> manual! :D')
     
     auto_times_instance = ChassisSearch()
     auto_times = auto_times_instance.auto_times
+    # print(auto_times)
         
     disengagment_instance = GetDisengagmentLocation(auto_times, dt)
-    disengagment_instance.getLocationBestPos()
+    # print(disengagment_instance)
+
+    # disengagment_instance.getLocationBestPos()
     disengagment_instance.getLocationLocalization()
 
+    print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
+
+    # Print the extracted data
+    position_x = []
+    position_y = []
+
+    # color = [[255,0,255]]
+    for i in range(len(disengagment_instance.localization_data)):
+        position_x.append(disengagment_instance.localization_data[i][1])
+        position_y.append(disengagment_instance.localization_data[i][2])
+        # color.append(color[0])
+        # print(disengagment_instance.localization_data[i])
     
-    
-    
+    # Print the extracted data
+    dis_position_x = []
+    dis_position_y = []
+    for j in range(len(disengagment_instance.grabbed_localization_data)):
+        # print(disengagment_instance.grabbed_localization_data[j][0])
+        dis_position_x.append(disengagment_instance.grabbed_localization_data[j][1][1])
+        dis_position_y.append(disengagment_instance.grabbed_localization_data[j][1][2])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, aspect='equal')
+    ax.scatter(position_x, position_y, c='red', alpha=0.9)
+    ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
+    ax.set_xlabel('X UTM (m)')
+    ax.set_ylabel('Y UTM (m)')
+    ax.legend()
+    ax.grid(True)
+    plt.show()
 
 
-
-
-
-
-
-# DynamoDB needs to get this uploaded FIRST!!!! (broken???)
-# class GetObstacleData:
-    
-#     def __init__(self):
-            
-#         ### VAR INIT ###
-        
-#         self.num_obstacles = []
-#         self.num_unkn_obs = []
-#         self.num_pedestrian = []
-#         self.num_vehicle = []
-#         self.ts_num_obstacles = []
-
-#         ### GET OBSTACLE DATA ###
-        
-#         query = {'topic': '/apollo/perception/obstacles'}
-        
-#         if mycol.find_one(query) is not None:
-            
-#             cursor = mycol.find(query)
-            
-#             for data in cursor:
-                
-#                 self.ts_num_obstacles.append(data['header']['timestampSec'])
-
-#                 temp_unkn = 0
-#                 temp_pedestrian = 0
-#                 temp_vehicle = 0
-
-#                 if "perceptionObstacle" in data:
-                    
-#                     for obj in range(1,len(data['perceptionObstacle'])):
-                        
-#                         if data['perceptionObstacle'][obj]['type'] == "VEHICLE":
-                            
-#                             temp_vehicle = temp_vehicle + 1
-                            
-#                         elif data['perceptionObstacle'][obj]['type'] == "PEDESTRIAN":
-                            
-#                             temp_pedestrian = temp_pedestrian + 1
-                            
-#                         elif data['perceptionObstacle'][obj]['type'] == "ST_UNKNOWN":
-                            
-#                             temp_unkn = temp_unkn + 1
-                                            
-#                     self.num_obstacles.append(temp_unkn + temp_pedestrian + temp_vehicle)
-#                     self.num_unkn_obs.append(temp_unkn)
-#                     self.num_pedestrian.append(temp_pedestrian)
-#                     self.num_vehicle.append(temp_vehicle)
-
-#                 else:
-#                     self.num_obstacles.append(0)
-#                     self.num_unkn_obs.append(0)
-#                     self.num_pedestrian.append(0)
-#                     self.num_vehicle.append(0)
-        
-#         # Export if necessary ???    
-#         # self.csv_export()
-
-#     def csv_export(self):
-
-#         self.obstacles_export_csv = {
-#             'num_obstacles':self.num_obstacles,
-#             'num_unkn_obs':self.num_unkn_obs,
-#             'num_pedestrian':self.num_pedestrian,
-#             'num_vehicle':self.num_vehicle,
-#             'ts_num_obstacles':self.ts_num_obstacles
-#         }
-
-#         # Export data to csv
-#         self.obstacles_csv_file = 'obstacles.csv'
-
-#         with open(self.obstacles_csv_file, 'w', newline='') as csvfile:
-#             writer = csv.DictWriter(csvfile, fieldnames=self.obstacles_export_csv.keys())  # Use data.keys() to specify column names
-#             writer.writeheader()
-#             for idx in range(len(self.num_obstacles)):
-#                 row_data = {key: value[idx] for key, value in self.obstacles_export_csv.items()}
-#                 writer.writerow(row_data)
-
-#         print(f'Data has been exported to {self.obstacles_csv_file}')

@@ -19,9 +19,9 @@
     {
         "type": "dynamo",
         "uri": "http://localhost:5000",
-        "collection": "cyber_aws",
-        "databasename": "cyber_aws_db",
-        "metatablename": "cyber_aws_meta",
+        "collection": "cyber_aws_with_vid",
+        "databasename": "cyber_aws_with_vid",
+        "metatablename": "cyber_aws_with_vid_meta",
         "batch": true,
         "throughputSleep": 20
     },
@@ -32,11 +32,7 @@
             "/apollo/sensor/camera/front_25mm/image",
             "/apollo/sensor/camera/front_25mm/image/compressed",
             "/apollo/sensor/velodyne32/PointCloud2",
-            "/apollo/sensor/velodyne32/VelodyneScan",
-            "/apollo/planning",
-            "/apollo/prediction",
-            "/apollo/perception",
-            "/apollo/perception/obstacles"
+            "/apollo/sensor/velodyne32/VelodyneScan"
         ]
     }
  }
