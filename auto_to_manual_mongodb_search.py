@@ -33,7 +33,6 @@ class ChassisSearch:
         self.mongodbSearch()
         self.autoManualSearch()
         
-        
     def mongodbSearch(self):
         
         if mycol.find_one(self.query) is not None:
@@ -57,6 +56,7 @@ class ChassisSearch:
         if self.csv_export:
             self.csvChassisExport()
         
+    
     def autoManualSearch(self):
         
         is_auto = False
@@ -77,7 +77,8 @@ class ChassisSearch:
                 self.auto_times.append((auto_time_start, auto_time_end))
 
         return self.auto_times
-                
+            
+        
     def csvAutoTimesExport(self):
         
         filename = str(round(time.time())) + '_autotimes_check.csv'
@@ -364,24 +365,30 @@ class GetDisengagmentLocation():
             end_time_start = float(end_time) - self.dt
             end_time_end   = float(end_time) + self.dt
             
-            
-
             start_idx_to_grab = min(range(len(self.localization_data)),
                             key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_start)))
             
             end_idx_to_grab = min(range(len(self.localization_data)),
                             key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time_end)))
-
+            
+            start_idx_to_grab_auto = min(range(len(self.localization_data)),
+                            key=lambda i: abs(float(self.localization_data[i][0]) - float(start_time)))
+            
+            end_idx_to_grab_auto = min(range(len(self.localization_data)),
+                            key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time)))
+            
+            print(start_idx_to_grab_auto, end_idx_to_grab_auto)
+            
             for idx in range(start_idx_to_grab, end_idx_to_grab):
                 self.grabbed_localization_data.append((
                     instance_value,
                     self.localization_data[idx]
                 ))
                 
-            for jdx in range(start_time, end_time):
+            for jdx in range(start_idx_to_grab_auto, end_idx_to_grab_auto):
                 self.autonomous_localization_data.append((
                     instance_value,
-                    self.autonomous_localization_data[jdx]
+                    self.localization_data[jdx]
                 ))
                 
             instance_value += 1
@@ -479,8 +486,8 @@ if __name__ == '__main__':
     
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111, aspect='equal')
-    ax2.scatter(position_x, position_y, c='red', alpha=0.9)
-    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
+    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Autonomous Driving')
+    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Manual Driving')
     ax2.set_xlabel('X UTM (m)')
     ax2.set_ylabel('Y UTM (m)')
     ax2.legend()
