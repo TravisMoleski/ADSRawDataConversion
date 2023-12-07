@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import time
-import cv2
+# import cv2
 import numpy as np
 
 ### OPTIONS ###
@@ -54,6 +54,7 @@ class ChassisSearch:
         self.chassis_data = sorted(self.chassis_data, key= lambda x: x[0])
         
         if self.csv_export:
+            
             self.csvChassisExport()
         
     
@@ -119,7 +120,7 @@ class ChassisSearch:
         print(f"Chassis topic data exported to {filename}")
     
     
-class GetDisengagmentLocation():
+class GetDisengagmentData():
     
     def __init__(self, auto_times, dt):
                 
@@ -146,18 +147,20 @@ class GetDisengagmentLocation():
         
         self.getBestPoseData()
         self.getLocalizationData()
-        self.getImageData()
+        # self.getImageData()
         
         self.getLocationBestPos()
         self.getLocationLocalization()
         
-        if self.grabbed_image_data:
-            self.makeVideos()
-        else:
-            print("No disegagments, No video exported. >:[")
+        # if self.grabbed_image_data:
+        #     self.makeVideos()
+        # else:
+        #     print("No disegagments, No video exported. >:[")
         
         
     def getBestPoseData(self):
+        
+        print(f"Getting {self.best_pos_query} data")
         
         if mycol.find_one(self.best_pos_query) is not None:
             
@@ -211,7 +214,11 @@ class GetDisengagmentLocation():
         # self.csvBestPoseExport()
         # print(self.best_pos_data)
         
+        print(f"{self.best_pos_query} data pull complete")
+        
     def getLocalizationData(self):
+        
+        print(f"Getting {self.localization_query} data")
         
         if mycol.find_one(self.localization_query) is not None:
             
@@ -232,9 +239,12 @@ class GetDisengagmentLocation():
                 
             self.localization_data = sorted(self.localization_data, key = lambda x: x[0])
             
-            # print(self.localization_data)
+        print(f"{self.localization_query} data pull complete")
+        
             
     def getImageData(self):
+        
+        print(f"Getting {self.image_query} data")
          
         ### Grabs all the images and sorts by timestamps
         if mycol.find_one(self.image_query) is not None:
@@ -248,7 +258,11 @@ class GetDisengagmentLocation():
                 )) 
             self.image_data = sorted(self.image_data, key = lambda x: x[0])
             
+        print(f"{self.image_query} data pull complete")
+            
     def makeVideos(self):
+        
+        print(f"Generating video(s) from {self.image_query} data")
         
         ### Grabs all the images from within the sort time
         instance_value = 0
@@ -303,7 +317,10 @@ class GetDisengagmentLocation():
                 
                 self.add_frame(self.grabbed_image_data.data[image_idx])
                 
-        self.export_video(self.video_06)         
+        self.export_video(self.video_06)
+        
+        print(f"{self.image_query} video exportation complete")
+        
     
     def add_frame(self, img_str):
         
@@ -437,12 +454,13 @@ class GetDisengagmentLocation():
 if __name__ == '__main__':
     
     print('Starting search for auto -> manual! :D')
+    print('Getting disegagment timestamps')
     
     auto_times_instance = ChassisSearch()
     auto_times = auto_times_instance.auto_times
-    # print(auto_times)
-        
-    disengagment_instance = GetDisengagmentLocation(auto_times, dt)
+    
+    print('Pulling data from timestamps')
+    disengagment_instance = GetDisengagmentData(auto_times, dt)
     # print(disengagment_instance)
 
     # disengagment_instance.getLocationBestPos()
@@ -486,8 +504,8 @@ if __name__ == '__main__':
     
     fig2 = plt.figure()
     ax2 = fig2.add_subplot(111, aspect='equal')
-    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Autonomous Driving')
-    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Manual Driving')
+    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
+    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
     ax2.set_xlabel('X UTM (m)')
     ax2.set_ylabel('Y UTM (m)')
     ax2.legend()
