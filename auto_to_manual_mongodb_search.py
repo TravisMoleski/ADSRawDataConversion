@@ -7,6 +7,7 @@ import numpy as np
 import os
 import json
 import tqdm
+import DisengagmentVideoExporter as DVE
 
 ### OPTIONS ###
 
@@ -159,6 +160,9 @@ class ChassisSearch:
         
         json_export_filename = str(self.id) + "_.json"
         
+        self.auto_start = self.auto_times[0][:]
+        self.auto_end = self.auto_times[1][:]
+        
         json_export = {
             '_id': self.id,
             'filename': self.filename,
@@ -172,11 +176,13 @@ class ChassisSearch:
             'vehicleID': self.vehicleID,
             'experimentID': self.experimentID,
             'other': self.other,
-            'auto_times': self.auto_times
+            'auto_times': self.auto_times,
+            'start_auto': self.auto_start,
+            'end_auto': self.auto_end
         }
         
         with open(json_export_filename, 'w') as json_file:
-            json.dump(json_export, json_file, default=str)
+            json.dump(json_export, json_file, default=str, indent=4)
             
         print(f"AutoTimes exported to json: {json_export_filename}")
         
@@ -232,12 +238,12 @@ class GetDisengagmentData():
         self.image_query = {'topic': '/apollo/sensor/camera/front_6mm/image/compressed'}
         
         # Best Pose Data
-        self.getBestPoseData()
-        self.getBestPoseDisengagment()
+        # self.getBestPoseData()
+        # self.getBestPoseDisengagment()
         
         # Localization Data
-        self.getLocalizationData()
-        self.getLocalizationDisengagment()
+        # self.getLocalizationData()
+        # self.getLocalizationDisengagment()
 
         
     def getBestPoseData(self):
@@ -379,7 +385,7 @@ class GetDisengagmentData():
             end_idx_to_grab_auto = min(range(len(self.localization_data)),
                             key=lambda i: abs(float(self.localization_data[i][0]) - float(end_time)))
             
-            print(start_idx_to_grab_auto, end_idx_to_grab_auto)
+            # print(start_idx_to_grab_auto, end_idx_to_grab_auto)
             
             for idx in range(start_idx_to_grab, end_idx_to_grab):
                 self.grabbed_localization_data.append((
@@ -449,53 +455,56 @@ if __name__ == '__main__':
     # print(disengagment_instance)
 
     # disengagment_instance.getLocationBestPos()
-    disengagment_instance.getLocalizationDisengagment()
+    # disengagment_instance.getLocalizationDisengagment()
 
     print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
-
-    # Print the extracted data
-    position_x = []
-    position_y = []
-
-    # color = [[255,0,255]]
-    for idx in range(len(disengagment_instance.localization_data)):
-        position_x.append(disengagment_instance.localization_data[idx][1])
-        position_y.append(disengagment_instance.localization_data[idx][2])
-        # color.append(color[0])
-        # print(disengagment_instance.localization_data[i])
+    
+    do_images = DVE.DesengagmentVideoExporter()
+    do_images.getImageData(db_data, auto_times, dt)
     
     # Print the extracted data
-    dis_position_x = []
-    dis_position_y = []
-    for jdx in range(len(disengagment_instance.grabbed_localization_data)):
-        # print(disengagment_instance.grabbed_localization_data[j][0])
-        dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
-        dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
+    # position_x = []
+    # position_y = []
+
+    # # color = [[255,0,255]]
+    # for idx in range(len(disengagment_instance.localization_data)):
+    #     position_x.append(disengagment_instance.localization_data[idx][1])
+    #     position_y.append(disengagment_instance.localization_data[idx][2])
+    #     # color.append(color[0])
+    #     # print(disengagment_instance.localization_data[i])
+    
+    # # Print the extracted data
+    # dis_position_x = []
+    # dis_position_y = []
+    # for jdx in range(len(disengagment_instance.grabbed_localization_data)):
+    #     # print(disengagment_instance.grabbed_localization_data[j][0])
+    #     dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
+    #     dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
         
-    auto_only_position_x = []
-    auto_only_position_y = []
-    for kdx in range(len(disengagment_instance.autonomous_localization_data)):
-        auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
-        auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
+    # auto_only_position_x = []
+    # auto_only_position_y = []
+    # for kdx in range(len(disengagment_instance.autonomous_localization_data)):
+    #     auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
+    #     auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, aspect='equal')
-    ax.scatter(position_x, position_y, c='red', alpha=0.9)
-    ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
-    ax.set_xlabel('X UTM (m)')
-    ax.set_ylabel('Y UTM (m)')
-    ax.legend()
-    ax.grid(True)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, aspect='equal')
+    # ax.scatter(position_x, position_y, c='red', alpha=0.9)
+    # ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
+    # ax.set_xlabel('X UTM (m)')
+    # ax.set_ylabel('Y UTM (m)')
+    # ax.legend()
+    # ax.grid(True)
     
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111, aspect='equal')
-    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
-    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
-    ax2.set_xlabel('X UTM (m)')
-    ax2.set_ylabel('Y UTM (m)')
-    ax2.legend()
-    ax2.grid(True)
+    # fig2 = plt.figure()
+    # ax2 = fig2.add_subplot(111, aspect='equal')
+    # ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
+    # ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
+    # ax2.set_xlabel('X UTM (m)')
+    # ax2.set_ylabel('Y UTM (m)')
+    # ax2.legend()
+    # ax2.grid(True)
     
-    plt.show()
+    # plt.show()
 
 
