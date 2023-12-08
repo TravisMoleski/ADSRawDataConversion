@@ -27,15 +27,21 @@ collection = db.mongo_aws  # Replace 'your_collection' with the actual name of y
 
 # Query to extract data (you can customize this based on your needs)
 # query = {'topic': '/apollo/localization/pose'}
-query = {'topic': '/apollo/sensor/camera/front_6mm/image/compressed'}
+query = {
+    'topic': '/apollo/sensor/camera/front_6mm/image/compressed',
+    'header.timestampSec':{"$gte": 1698252017.966335, "$lte":1698252667.6481304}
+}
 # Extract data from MongoDB
+print("LOOKING FOR DATA")
 result = collection.find(query)
+# print(result[0])
 
-
-ax1 =  plt.figure().add_subplot(projection='3d')
-ax1.axis('equal')
+print("FOUND QUERY!")
+# ax1 =  plt.figure().add_subplot(projection='3d')
+# ax1.axis('equal')
 # sorted_result = sorted(result,  key=lambda x: (x['time']))
 for document in result:
+    # print(document)
     if document['topic'] == "/apollo/sensor/camera/front_6mm/image/compressed":
         pil_im = stringToImage(document['data'])
         rgb_im = toRGB(pil_im)
