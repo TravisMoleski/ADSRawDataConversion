@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import time
-# import cv2
 import numpy as np
 import os
 import json
@@ -70,8 +69,21 @@ class ChassisSearch:
     
     def autoManualSearch(self):
         
+        ### how this works ###
+        # GOAL: GET START AND END TIMES FOR AUTONOMOUS DRIVING!
+        # For each row in the sorted chassis data, it checks the drive state. 
+        # If the drivestate is COMPLETE_AUTO_DRIVE, it checks to see if the is_auto is False.
+            # If false, it turns the auto state to true.
+            # Then, it sets the auto_time_start equal to the timestamp. This gives the starting point for the autonomous driving and endpoint for manual driving.
+        # IF is_auto IS TRUE, IT SIMPLY SKIPS THE ROW! 
+        # If the drivestate is COMPLETE_MANUAL, it checks to see if the is_auto is True
+            # If is_auto is True, it turns the auto state to false.
+            # Then, it sets the auto_time_end equal to the timestamp. This gives the ending point for the autonomous driving and the start point for manual driving.
+        # The goal is to get the start and end times for when the van is in autonomous drive mode.
+        
         print('Searching for disengagments...')
         
+        # Initializes the drive state
         is_auto = False
         
         for row in self.chassis_data:
@@ -92,7 +104,6 @@ class ChassisSearch:
         if self.json_export:
             
             # Export in json
-            
             self.jsonAutoTimesExport()
             
         if self.csv_export:
@@ -169,9 +180,6 @@ class ChassisSearch:
             
         print(f"AutoTimes exported to json: {json_export_filename}")
         
-        
-        
-    
     
     def getMetaData(self):
         
@@ -197,11 +205,7 @@ class ChassisSearch:
         
         print('Metadata obtained!')
 
-            
-    
-    
-    
-    
+
 class GetDisengagmentData():
     
     def __init__(self, auto_times, dt):
@@ -227,18 +231,14 @@ class GetDisengagmentData():
         self.localization_query = {'topic': '/apollo/localization/pose'}
         self.image_query = {'topic': '/apollo/sensor/camera/front_6mm/image/compressed'}
         
+        # Best Pose Data
         self.getBestPoseData()
+        self.getBestPoseDisengagment()
+        
+        # Localization Data
         self.getLocalizationData()
-        # self.getImageData()
-        
-        self.getLocationBestPos()
-        self.getLocationLocalization()
-        
-        # if self.grabbed_image_data:
-        #     self.makeVideos()
-        # else:
-        #     print("No disegagments, No video exported. >:[")
-        
+        self.getLocalizationDisengagment()
+
         
     def getBestPoseData(self):
         
@@ -323,104 +323,7 @@ class GetDisengagmentData():
             
         print(f"{self.localization_query} data pull complete")
         
-            
-    def getImageData(self):
-        
-        print(f"Getting {self.image_query} data")
-         
-        ### Grabs all the images and sorts by timestamps
-        if db_data.find_one(self.image_query) is not None:
-            cursor = db_data.find(self.image_query)
-            for data in cursor: 
-                timestamp = float(data['header']['timestampSec'])
-                data = str(data['data'])
-                self.image_data.append((
-                    timestamp,
-                    data
-                )) 
-            self.image_data = sorted(self.image_data, key = lambda x: x[0])
-            
-        print(f"{self.image_query} data pull complete")
-            
-    def makeVideos(self):
-        
-        print(f"Generating video(s) from {self.image_query} data")
-        
-        ### Grabs all the images from within the sort time
-        instance_value = 0
-        
-        for row in self.auto_times:
-            
-            start_time, end_time = row
-
-            end_time_start = float(end_time) - self.dt
-            end_time_end = float(end_time) + self.dt
-            
-            start_idx_to_grab = min(range(len(self.image_data)),
-                            key=lambda i: abs(float(self.image_data[i][0]) - float(end_time_start)))
-            
-            end_idx_to_grab = min(range(len(self.image_data)),
-                            key=lambda i: abs(float(self.image_data[i][0]) - float(end_time_end)))
-            
-            for idx in range(start_idx_to_grab, end_idx_to_grab):
-                
-                self.grabbed_image_data.append((
-                    instance_value,
-                    self.grabbed_image_data[idx]
-                ))
-                
-            instance_value += 1
-            
-        ### Grabs images and appends to a video. New video is generated per instance of disengagment. 
-        instance_value = 0
-        
-        # Initiaizes the first video
-        self.fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self.output_name_06 = str(self.video_base_name) + str(instance_value) + ".avi"
-        self.video_06 = cv2.VideoWriter(self.output_name_06, self.fourcc, self.fps, self.dims)
-        
-        # Loops through each image frame
-        for image_idx in self.grabbed_image_data:
-            
-            # If the instance value does not match the previous instance value, a new video is created.
-            if self.grabbed_best_pos_data[0] != instance_value:
-                
-                self.export_video(self.video_06)
-                
-                self.fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                self.output_name_06 = str(self.video_base_name) + str(instance_value) + ".avi"
-                self.video_06 = cv2.VideoWriter(self.output_name_06, self.fourcc, self.fps, self.dims)
-                
-                self.add_frame(self.grabbed_image_data.data[image_idx])
-                
-                instance_value += 1
-                
-            else:
-                
-                self.add_frame(self.grabbed_image_data.data[image_idx])
-                
-        self.export_video(self.video_06)
-        
-        print(f"{self.image_query} video exportation complete")
-        
-    
-    # def add_frame(self, img_str):
-        
-    #     decoded_image = cv2.imdecode(np.frombuffer(img_str, np.uint8), cv2.IMREAD_COLOR)
-    #     rgb_image = cv2.cvtColor(decoded_image, cv2.COLOR_BGR2RGB)
-    #     image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-    #     self.add_frame_06(image)
-        
-        
-    def export_video(self, video):
-        
-        video.release()
-        
-        print('')
-        print('VIDEO RELEASED') 
-        print('')
-        
-    def getLocationBestPos(self):
+    def getBestPoseDisengagment(self):
         
         instance_value = 0
 
@@ -453,7 +356,7 @@ class GetDisengagmentData():
             
         # print(self.grabbed_best_pos_data)
         
-    def getLocationLocalization(self):
+    def getLocalizationDisengagment(self):
         
         instance_value = 0
         
@@ -541,58 +444,58 @@ if __name__ == '__main__':
     auto_times_instance = ChassisSearch()
     auto_times = auto_times_instance.auto_times
     
-    # print('Pulling data from timestamps')
-    # disengagment_instance = GetDisengagmentData(auto_times, dt)
-    # # print(disengagment_instance)
+    print('Pulling data from timestamps')
+    disengagment_instance = GetDisengagmentData(auto_times, dt)
+    # print(disengagment_instance)
 
-    # # disengagment_instance.getLocationBestPos()
-    # disengagment_instance.getLocationLocalization()
+    # disengagment_instance.getLocationBestPos()
+    disengagment_instance.getLocationLocalization()
 
-    # print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
+    print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
 
-    # # Print the extracted data
-    # position_x = []
-    # position_y = []
+    # Print the extracted data
+    position_x = []
+    position_y = []
 
-    # # color = [[255,0,255]]
-    # for idx in range(len(disengagment_instance.localization_data)):
-    #     position_x.append(disengagment_instance.localization_data[idx][1])
-    #     position_y.append(disengagment_instance.localization_data[idx][2])
-    #     # color.append(color[0])
-    #     # print(disengagment_instance.localization_data[i])
+    # color = [[255,0,255]]
+    for idx in range(len(disengagment_instance.localization_data)):
+        position_x.append(disengagment_instance.localization_data[idx][1])
+        position_y.append(disengagment_instance.localization_data[idx][2])
+        # color.append(color[0])
+        # print(disengagment_instance.localization_data[i])
     
-    # # Print the extracted data
-    # dis_position_x = []
-    # dis_position_y = []
-    # for jdx in range(len(disengagment_instance.grabbed_localization_data)):
-    #     # print(disengagment_instance.grabbed_localization_data[j][0])
-    #     dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
-    #     dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
+    # Print the extracted data
+    dis_position_x = []
+    dis_position_y = []
+    for jdx in range(len(disengagment_instance.grabbed_localization_data)):
+        # print(disengagment_instance.grabbed_localization_data[j][0])
+        dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
+        dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
         
-    # auto_only_position_x = []
-    # auto_only_position_y = []
-    # for kdx in range(len(disengagment_instance.autonomous_localization_data)):
-    #     auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
-    #     auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
+    auto_only_position_x = []
+    auto_only_position_y = []
+    for kdx in range(len(disengagment_instance.autonomous_localization_data)):
+        auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
+        auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
 
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, aspect='equal')
-    # ax.scatter(position_x, position_y, c='red', alpha=0.9)
-    # ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
-    # ax.set_xlabel('X UTM (m)')
-    # ax.set_ylabel('Y UTM (m)')
-    # ax.legend()
-    # ax.grid(True)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, aspect='equal')
+    ax.scatter(position_x, position_y, c='red', alpha=0.9)
+    ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
+    ax.set_xlabel('X UTM (m)')
+    ax.set_ylabel('Y UTM (m)')
+    ax.legend()
+    ax.grid(True)
     
-    # fig2 = plt.figure()
-    # ax2 = fig2.add_subplot(111, aspect='equal')
-    # ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
-    # ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
-    # ax2.set_xlabel('X UTM (m)')
-    # ax2.set_ylabel('Y UTM (m)')
-    # ax2.legend()
-    # ax2.grid(True)
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111, aspect='equal')
+    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
+    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
+    ax2.set_xlabel('X UTM (m)')
+    ax2.set_ylabel('Y UTM (m)')
+    ax2.legend()
+    ax2.grid(True)
     
-    # plt.show()
+    plt.show()
 
 
