@@ -36,7 +36,7 @@ class ChassisSearch:
         ### START SEARCH ###
         self.getMetaData()
         self.mongodbSearch()
-        self.autoManualSearch()
+        self.disengagmentSearch()
         
     def mongodbSearch(self):
         
@@ -67,7 +67,7 @@ class ChassisSearch:
         print('Chassis data donwloaded from MongoDB.')
         
     
-    def autoManualSearch(self):
+    def disengagmentSearch(self):
         
         ### how this works ###
         # GOAL: GET START AND END TIMES FOR AUTONOMOUS DRIVING!
