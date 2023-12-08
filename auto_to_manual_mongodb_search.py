@@ -35,10 +35,10 @@ class ChassisSearch:
         
         ### START SEARCH ###
         self.getMetaData()
-        self.mongodbSearch()
+        self.mongodbChassisSearch()
         self.disengagmentSearch()
         
-    def mongodbSearch(self):
+    def mongodbChassisSearch(self):
         
         print('Downloading chassis data...')
         
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     # print(disengagment_instance)
 
     # disengagment_instance.getLocationBestPos()
-    disengagment_instance.getLocationLocalization()
+    disengagment_instance.getLocalizationDisengagment()
 
     print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
 
