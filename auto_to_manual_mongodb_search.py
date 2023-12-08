@@ -5,6 +5,9 @@ import csv
 import time
 # import cv2
 import numpy as np
+import os
+import json
+import tqdm
 
 ### OPTIONS ###
 
@@ -15,7 +18,8 @@ dt = 5
 ### REPLACE WITH DESIRED MONGODB INFO ###
 myclient = pymongo.MongoClient("mongodb://localhost:27017")
 mydb = myclient["cyber19"]
-mycol = mydb["cyber19"]
+db_data = mydb["cyber19"]
+db_metadata = mydb["metadata"]
         
 class ChassisSearch:
     
@@ -28,16 +32,20 @@ class ChassisSearch:
         
         ### OPTIONS ###
         self.csv_export = False
+        self.json_export = True
         
         ### START SEARCH ###
+        self.getMetaData()
         self.mongodbSearch()
         self.autoManualSearch()
         
     def mongodbSearch(self):
         
-        if mycol.find_one(self.query) is not None:
+        print('Downloading chassis data...')
+        
+        if db_data.find_one(self.query) is not None:
             
-            cursor = mycol.find(self.query)
+            cursor = db_data.find(self.query)
             
             for data in cursor:
                 
@@ -56,9 +64,13 @@ class ChassisSearch:
         if self.csv_export:
             
             self.csvChassisExport()
+            
+        print('Chassis data donwloaded from MongoDB.')
         
     
     def autoManualSearch(self):
+        
+        print('Searching for disengagments...')
         
         is_auto = False
         
@@ -76,6 +88,17 @@ class ChassisSearch:
                 is_auto = False
                 auto_time_end = timestamp
                 self.auto_times.append((auto_time_start, auto_time_end))
+                
+        if self.json_export:
+            
+            # Export in json
+            
+            self.jsonAutoTimesExport()
+            
+        if self.csv_export:
+            
+            # Export in csv
+            self.csvAutoTimesExport()
 
         return self.auto_times
             
@@ -118,6 +141,65 @@ class ChassisSearch:
             csv_writer.writerows(self.chassis_data)
 
         print(f"Chassis topic data exported to {filename}")
+        
+    
+    
+    def jsonAutoTimesExport(self):
+        
+        json_export_filename = str(self.id) + "_.json"
+        
+        json_export = {
+            '_id': self.id,
+            'filename': self.filename,
+            'foldername': self.foldername,
+            'startTime': self.startTime,
+            'endTime': self.endTime,
+            'msgnum': self.msgnum,
+            'size': self.size,
+            'topics': self.topics,
+            'type': self.type,
+            'vehicleID': self.vehicleID,
+            'experimentID': self.experimentID,
+            'other': self.other,
+            'auto_times': self.auto_times
+        }
+        
+        with open(json_export_filename, 'w') as json_file:
+            json.dump(json_export, json_file, default=str)
+            
+        print(f"AutoTimes exported to json: {json_export_filename}")
+        
+        
+        
+    
+    
+    def getMetaData(self):
+        
+        print('Getting meta data...')
+
+        cursor = db_metadata.find()
+        idx = 0
+        
+        data = cursor[0]
+
+        self.id = data['_id']
+        self.filename = data['filename']
+        self.foldername = data['foldername']
+        self.startTime = data['startTime']
+        self.endTime = data['endTime']
+        self.msgnum = data['msgnum']
+        self.size = data['size']
+        self.topics = data['topics']
+        self.type = data['type']
+        self.vehicleID = data['vehicleID']
+        self.experimentID = data['experimentID']
+        self.other = data['other']
+        
+        print('Metadata obtained!')
+
+            
+    
+    
     
     
 class GetDisengagmentData():
@@ -162,9 +244,9 @@ class GetDisengagmentData():
         
         print(f"Getting {self.best_pos_query} data")
         
-        if mycol.find_one(self.best_pos_query) is not None:
+        if db_data.find_one(self.best_pos_query) is not None:
             
-            cursor = mycol.find(self.best_pos_query)
+            cursor = db_data.find(self.best_pos_query)
             
             for data in cursor:
                 
@@ -220,9 +302,9 @@ class GetDisengagmentData():
         
         print(f"Getting {self.localization_query} data")
         
-        if mycol.find_one(self.localization_query) is not None:
+        if db_data.find_one(self.localization_query) is not None:
             
-            cursor = mycol.find(self.localization_query)
+            cursor = db_data.find(self.localization_query)
             
             for data in cursor: 
                 
@@ -247,8 +329,8 @@ class GetDisengagmentData():
         print(f"Getting {self.image_query} data")
          
         ### Grabs all the images and sorts by timestamps
-        if mycol.find_one(self.image_query) is not None:
-            cursor = mycol.find(self.image_query)
+        if db_data.find_one(self.image_query) is not None:
+            cursor = db_data.find(self.image_query)
             for data in cursor: 
                 timestamp = float(data['header']['timestampSec'])
                 data = str(data['data'])
@@ -322,12 +404,12 @@ class GetDisengagmentData():
         print(f"{self.image_query} video exportation complete")
         
     
-    def add_frame(self, img_str):
+    # def add_frame(self, img_str):
         
-        decoded_image = cv2.imdecode(np.frombuffer(img_str, np.uint8), cv2.IMREAD_COLOR)
-        rgb_image = cv2.cvtColor(decoded_image, cv2.COLOR_BGR2RGB)
-        image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-        self.add_frame_06(image)
+    #     decoded_image = cv2.imdecode(np.frombuffer(img_str, np.uint8), cv2.IMREAD_COLOR)
+    #     rgb_image = cv2.cvtColor(decoded_image, cv2.COLOR_BGR2RGB)
+    #     image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+    #     self.add_frame_06(image)
         
         
     def export_video(self, video):
@@ -459,58 +541,58 @@ if __name__ == '__main__':
     auto_times_instance = ChassisSearch()
     auto_times = auto_times_instance.auto_times
     
-    print('Pulling data from timestamps')
-    disengagment_instance = GetDisengagmentData(auto_times, dt)
-    # print(disengagment_instance)
+    # print('Pulling data from timestamps')
+    # disengagment_instance = GetDisengagmentData(auto_times, dt)
+    # # print(disengagment_instance)
 
-    # disengagment_instance.getLocationBestPos()
-    disengagment_instance.getLocationLocalization()
+    # # disengagment_instance.getLocationBestPos()
+    # disengagment_instance.getLocationLocalization()
 
-    print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
+    # print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
 
-    # Print the extracted data
-    position_x = []
-    position_y = []
+    # # Print the extracted data
+    # position_x = []
+    # position_y = []
 
-    # color = [[255,0,255]]
-    for idx in range(len(disengagment_instance.localization_data)):
-        position_x.append(disengagment_instance.localization_data[idx][1])
-        position_y.append(disengagment_instance.localization_data[idx][2])
-        # color.append(color[0])
-        # print(disengagment_instance.localization_data[i])
+    # # color = [[255,0,255]]
+    # for idx in range(len(disengagment_instance.localization_data)):
+    #     position_x.append(disengagment_instance.localization_data[idx][1])
+    #     position_y.append(disengagment_instance.localization_data[idx][2])
+    #     # color.append(color[0])
+    #     # print(disengagment_instance.localization_data[i])
     
-    # Print the extracted data
-    dis_position_x = []
-    dis_position_y = []
-    for jdx in range(len(disengagment_instance.grabbed_localization_data)):
-        # print(disengagment_instance.grabbed_localization_data[j][0])
-        dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
-        dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
+    # # Print the extracted data
+    # dis_position_x = []
+    # dis_position_y = []
+    # for jdx in range(len(disengagment_instance.grabbed_localization_data)):
+    #     # print(disengagment_instance.grabbed_localization_data[j][0])
+    #     dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
+    #     dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
         
-    auto_only_position_x = []
-    auto_only_position_y = []
-    for kdx in range(len(disengagment_instance.autonomous_localization_data)):
-        auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
-        auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
+    # auto_only_position_x = []
+    # auto_only_position_y = []
+    # for kdx in range(len(disengagment_instance.autonomous_localization_data)):
+    #     auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
+    #     auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, aspect='equal')
-    ax.scatter(position_x, position_y, c='red', alpha=0.9)
-    ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
-    ax.set_xlabel('X UTM (m)')
-    ax.set_ylabel('Y UTM (m)')
-    ax.legend()
-    ax.grid(True)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, aspect='equal')
+    # ax.scatter(position_x, position_y, c='red', alpha=0.9)
+    # ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
+    # ax.set_xlabel('X UTM (m)')
+    # ax.set_ylabel('Y UTM (m)')
+    # ax.legend()
+    # ax.grid(True)
     
-    fig2 = plt.figure()
-    ax2 = fig2.add_subplot(111, aspect='equal')
-    ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
-    ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
-    ax2.set_xlabel('X UTM (m)')
-    ax2.set_ylabel('Y UTM (m)')
-    ax2.legend()
-    ax2.grid(True)
+    # fig2 = plt.figure()
+    # ax2 = fig2.add_subplot(111, aspect='equal')
+    # ax2.scatter(position_x, position_y, c='red', alpha=0.9, label='Manual Driving')
+    # ax2.scatter(auto_only_position_x, auto_only_position_y, c='blue', label='Autonomous Driving')
+    # ax2.set_xlabel('X UTM (m)')
+    # ax2.set_ylabel('Y UTM (m)')
+    # ax2.legend()
+    # ax2.grid(True)
     
-    plt.show()
+    # plt.show()
 
 
