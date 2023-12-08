@@ -7,6 +7,7 @@ import time
 import numpy as np
 import os
 import json
+import tqdm
 
 ### OPTIONS ###
 
@@ -40,6 +41,8 @@ class ChassisSearch:
         
     def mongodbSearch(self):
         
+        print('Downloading chassis data...')
+        
         if db_data.find_one(self.query) is not None:
             
             cursor = db_data.find(self.query)
@@ -61,9 +64,13 @@ class ChassisSearch:
         if self.csv_export:
             
             self.csvChassisExport()
+            
+        print('Chassis data donwloaded from MongoDB.')
         
     
     def autoManualSearch(self):
+        
+        print('Searching for disengagments...')
         
         is_auto = False
         
@@ -159,6 +166,8 @@ class ChassisSearch:
         
         with open(json_export_filename, 'w') as json_file:
             json.dump(json_export, json_file, default=str)
+            
+        print(f"AutoTimes exported to json: {json_export_filename}")
         
         
         
@@ -169,25 +178,25 @@ class ChassisSearch:
         print('Getting meta data...')
 
         cursor = db_metadata.find()
-            
-        for data in cursor:
-            
-            self.id = data['_id']
-            self.filename = data['filename']
-            self.foldername = data['foldername']
-            self.startTime = data['startTime']
-            self.endTime = data['endTime']
-            self.msgnum = data['msgnum']
-            self.size = data['size']
-            self.topics = data['topics']
-            self.type = data['type']
-            self.vehicleID = data['vehicleID']
-            self.experimentID = data['experimentID']
-            self.other = data['other']
-            
-            time.sleep(100) 
-            
-            
+        idx = 0
+        
+        data = cursor[0]
+
+        self.id = data['_id']
+        self.filename = data['filename']
+        self.foldername = data['foldername']
+        self.startTime = data['startTime']
+        self.endTime = data['endTime']
+        self.msgnum = data['msgnum']
+        self.size = data['size']
+        self.topics = data['topics']
+        self.type = data['type']
+        self.vehicleID = data['vehicleID']
+        self.experimentID = data['experimentID']
+        self.other = data['other']
+        
+        print('Metadata obtained!')
+
             
     
     
