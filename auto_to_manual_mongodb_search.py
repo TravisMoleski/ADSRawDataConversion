@@ -1,13 +1,16 @@
 import pymongo
 import numpy as np
+# import matplotlib
+# matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import csv
 import time
 import numpy as np
-import os
 import json
-import tqdm
-import DisengagmentVideoExporter as DVE
+import GetDisengagmentVideoData as GDVD
+import GetDisengagmentLocalizationData as GDLD
+# import ChassisSearch as CS
+# import GetDisengagmentLidarData as GDLiD
 
 ### OPTIONS ###
 
@@ -30,18 +33,9 @@ class ChassisSearch:
         self.query = {'topic': '/apollo/canbus/chassis'}
         self.chassis_data = []
         
-        ### OPTIONS ###
-        self.csv_export = False
-        self.json_export = True
-        
-        ### START SEARCH ###
-        self.getMetaData()
-        self.mongodbChassisSearch()
-        self.disengagmentSearch()
-        
     def mongodbChassisSearch(self):
         
-        print('Downloading chassis data...')
+        print(f"Downloading chassis data {self.query}...")
         
         if db_data.find_one(self.query) is not None:
             
@@ -60,12 +54,10 @@ class ChassisSearch:
                 self.chassis_data.append((timestamp, drivestate, speed, steer_rate, steeringPercentage, throttlePercentage, brakePercentage))
 
         self.chassis_data = sorted(self.chassis_data, key= lambda x: x[0])
-        
-        if self.csv_export:
-            
-            self.csvChassisExport()
             
         print('Chassis data donwloaded from MongoDB.')
+        
+        return self.chassis_data
         
     
     def disengagmentSearch(self):
@@ -101,16 +93,6 @@ class ChassisSearch:
                 is_auto = False
                 auto_time_end = timestamp
                 self.auto_times.append((auto_time_start, auto_time_end))
-                
-        if self.json_export:
-            
-            # Export in json
-            self.jsonAutoTimesExport()
-            
-        if self.csv_export:
-            
-            # Export in csv
-            self.csvAutoTimesExport()
 
         return self.auto_times
             
@@ -187,13 +169,15 @@ class ChassisSearch:
         print(f"AutoTimes exported to json: {json_export_filename}")
         
     
-    def getMetaData(self):
+    def getMetaData(self, db_metadata):
         
         print('Getting meta data...')
 
         cursor = db_metadata.find()
         idx = 0
         
+        # In the event that there are multiple metadata tables uploaded, this just grabs the first. 
+        # (There should be only one anyways...?)
         data = cursor[0]
 
         self.id = data['_id']
@@ -210,7 +194,24 @@ class ChassisSearch:
         self.other = data['other']
         
         print('Metadata obtained!')
-
+        
+        metadata_base_json = {
+            '_id': self.id,
+            'filename': self.filename,
+            'foldername': self.foldername,
+            'startTime': self.startTime,
+            'endTime': self.endTime,
+            'msgnum': self.msgnum,
+            'size': self.size,
+            'topics': self.topics,
+            'type': self.type,
+            'vehicleID': self.vehicleID,
+            'experimentID': self.experimentID,
+            'other': self.other,
+            'auto_times': self.auto_times
+        }
+        
+        return metadata_base_json
 
 class GetDisengagmentData():
     
@@ -235,8 +236,7 @@ class GetDisengagmentData():
         
         self.best_pos_query = {'topic': '/apollo/sensor/gnss/best_pose'}
         self.localization_query = {'topic': '/apollo/localization/pose'}
-        self.image_query = {'topic': '/apollo/sensor/camera/front_6mm/image/compressed'}
-        
+                
         # Best Pose Data
         # self.getBestPoseData()
         # self.getBestPoseDisengagment()
@@ -448,46 +448,82 @@ if __name__ == '__main__':
     print('Getting disegagment timestamps')
     
     auto_times_instance = ChassisSearch()
-    auto_times = auto_times_instance.auto_times
+    chassis_data = auto_times_instance.mongodbChassisSearch()
+    auto_times = auto_times_instance.disengagmentSearch()
+    metadata_base_json = auto_times_instance.getMetaData(db_metadata)
     
+    # auto_times_instance = CS()
+    # chassis_data = auto_times_instance.mongodbChassisSearch()
+    # auto_times = auto_times_instance.disengagmentSearch()
+    # metadata_base_json = auto_times_instance.getMetaData(db_metadata)
+    
+    # auto_times_instance.jsonAutoTimesExport()
+    
+    print("FOUND ", len(auto_times), "DISENGAGEMENTS")
+
     print('Pulling data from timestamps')
-    disengagment_instance = GetDisengagmentData(auto_times, dt)
-    # print(disengagment_instance)
-
-    # disengagment_instance.getLocationBestPos()
-    # disengagment_instance.getLocalizationDisengagment()
-
-    print("FOUND ", len(disengagment_instance.auto_times), "DISENGAGEMENTS")
     
-    do_images = DVE.DesengagmentVideoExporter()
-    do_images.getImageData(db_data, auto_times, dt)
+    ### Handling localization queries
+    disengagment_instance = GDLD.GetDisengagmentLocalizationData(auto_times, dt)
     
-    # Print the extracted data
+    # # Using best pos topic
+    # # disengagment_instance.getBestPoseData(db_data)
+    # # bp_data = disengagment_instance.getBestPoseDisengagment()
+    
+    # Using localization topic
+    l_all_data = disengagment_instance.getLocalizationData(db_data)
+    # l_data_dt_disengagment_point, l_data_auto_times_only = disengagment_instance.getLocalizationDisengagment()
+    
+    # Using LiDAR topic
+    # lidar_instance = GDLiD.GetDisengagmentLidarData(db_data, auto_times, dt)
+    # lidar_instance.getLiDARData()
+    
+
+    # ### Handling image queries
+    do_images = GDVD.DesengagmentVideoExporter()
+    # do_images.getImageData(db_data, auto_times, dt)
+    do_images.exportImageDataWithMetadata(db_data, metadata_base_json, l_all_data, auto_times, dt)
+    
+    # # Print the extracted data
     # position_x = []
     # position_y = []
 
     # # color = [[255,0,255]]
-    # for idx in range(len(disengagment_instance.localization_data)):
-    #     position_x.append(disengagment_instance.localization_data[idx][1])
-    #     position_y.append(disengagment_instance.localization_data[idx][2])
+    
+    # # Getting all the data into a nicer array 
+    # for idx in range(len(l_all_data)):
+        
+    #     position_x.append(l_all_data[idx][1])
+    #     position_y.append(l_all_data[idx][2])
     #     # color.append(color[0])
     #     # print(disengagment_instance.localization_data[i])
+
     
-    # # Print the extracted data
+    # # Getting all the disengagment +- dt seconds data into a nicer array 
     # dis_position_x = []
     # dis_position_y = []
-    # for jdx in range(len(disengagment_instance.grabbed_localization_data)):
+    
+    # for jdx in range(len(l_data_dt_disengagment_point)):
     #     # print(disengagment_instance.grabbed_localization_data[j][0])
-    #     dis_position_x.append(disengagment_instance.grabbed_localization_data[jdx][1][1])
-    #     dis_position_y.append(disengagment_instance.grabbed_localization_data[jdx][1][2])
-        
+    #     dis_position_x.append(l_data_dt_disengagment_point[jdx][1][1])
+    #     dis_position_y.append(l_data_dt_disengagment_point[jdx][1][2])
+
+    # # Getting all the auto driving data into a nicer array 
     # auto_only_position_x = []
     # auto_only_position_y = []
-    # for kdx in range(len(disengagment_instance.autonomous_localization_data)):
-    #     auto_only_position_x.append(disengagment_instance.autonomous_localization_data[kdx][1][1])
-    #     auto_only_position_y.append(disengagment_instance.autonomous_localization_data[kdx][1][2])
+    
+    # for kdx in range(len(l_data_auto_times_only)):
+        
+    #     auto_only_position_x.append(l_data_auto_times_only[kdx][1][1])
+    #     auto_only_position_y.append(l_data_auto_times_only[kdx][1][2])
+
+    
+    # print(dis_position_x) 
+    # print('='*100)
+    # print(dis_position_y)
 
     # fig = plt.figure()
+    # plt.scatter(position_x, position_y)
     # ax = fig.add_subplot(111, aspect='equal')
     # ax.scatter(position_x, position_y, c='red', alpha=0.9)
     # ax.scatter(dis_position_x, dis_position_y, c='blue', label='Disengaged within: '+str(dt)+'s')
