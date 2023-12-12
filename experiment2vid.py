@@ -1,7 +1,3 @@
-###########################################################
-# Rhett Huston
-# Last updated: 11/01/2023
-###########################################################
 
 # import packages
 import sys, time, os
@@ -28,10 +24,9 @@ import base64
 
 import piexif
 
-os.system('clear')
+
 
 ###########################################################
-
 class VideoExporter:
     
     def __init__(self, camera_topic):

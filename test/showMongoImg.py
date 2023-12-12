@@ -5,7 +5,7 @@ from PIL import Image
 import io
 import cv2
 import base64 
-
+import json
 
 # Take in base64 string and return PIL image
 def stringToImage(base64_string):
@@ -25,11 +25,19 @@ db = client.mongo_aws  # Replace 'your_database' with the actual name of your da
 # Access the collection (similar to a table in relational databases)
 collection = db.mongo_aws  # Replace 'your_collection' with the actual name of your collection
 
+dis_info = open("./disengagement_times/657212157f17985fbdabfd01_.json")
+dis_info = json.load(dis_info)
+print(dis_info)
+
+dis_time = dis_info['disengagement_times'][2]
+dis_dt   = dis_info['disengagement_tolerance']
+dis_dt = 1
+
 # Query to extract data (you can customize this based on your needs)
 # query = {'topic': '/apollo/localization/pose'}
 query = {
     'topic': '/apollo/sensor/camera/front_6mm/image/compressed',
-    'header.timestampSec':{"$gte": 1698252017.966335, "$lte":1698252667.6481304}
+    'header.timestampSec':{"$gte": dis_time-dis_dt, "$lte":dis_time+dis_dt}
 }
 # Extract data from MongoDB
 print("LOOKING FOR DATA")
