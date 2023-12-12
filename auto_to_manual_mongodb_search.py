@@ -180,18 +180,18 @@ class ChassisSearch:
         # (There should be only one anyways...?)
         data = cursor[0]
 
-        self.id = data['_id']
-        self.filename = data['filename']
-        self.foldername = data['foldername']
-        self.startTime = data['startTime']
-        self.endTime = data['endTime']
-        self.msgnum = data['msgnum']
-        self.size = data['size']
-        self.topics = data['topics']
-        self.type = data['type']
-        self.vehicleID = data['vehicleID']
-        self.experimentID = data['experimentID']
-        self.other = data['other']
+        self.id = str(data['_id'])
+        self.filename = str(data['filename'])
+        self.foldername = str(data['foldername'])
+        self.startTime = str(data['startTime'])
+        self.endTime = str(data['endTime'])
+        self.msgnum = str(data['msgnum'])
+        self.size = str(data['size'])
+        self.topics = str(data['topics'])
+        self.type = str(data['type'])
+        self.vehicleID = str(data['vehicleID'])
+        self.experimentID = str(data['experimentID'])
+        self.other = str(data['other'])
         
         print('Metadata obtained!')
         

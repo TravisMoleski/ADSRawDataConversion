@@ -9,6 +9,8 @@ import time
 import json
 import copy
 import os
+from bson import ObjectId
+from datetime import datetime
 
 class DesengagmentVideoExporter():
     
@@ -53,14 +55,10 @@ class DesengagmentVideoExporter():
             # Extract data from MongoDB
             print("LOOKING FOR DATA")
             result = self.db.find(query)
-            # print(result)
 
             print("FOUND QUERY!")
-            # ax1 =  plt.figure().add_subplot(projection='3d')
-            # ax1.axis('equal')
-            # sorted_result = sorted(result,  key=lambda x: (x['time']))
+            
             for document in result:
-                # print(document)
                 
                 self.createVideo(end_query)
                 
@@ -71,16 +69,15 @@ class DesengagmentVideoExporter():
                     cv2.waitKey(50)
 
             cv2.destroyAllWindows()
-            
-            
-            
+
     def exportImageDataWithMetadata(self, db, base_metadata, localization_data, auto_times, dt):
-        
-        
         
         self.db = db
         self.auto_times = auto_times
         self.dt = dt
+        
+        to_json_file = {}
+        localization_metadata = {}
         
         for row in auto_times:
             
@@ -97,22 +94,14 @@ class DesengagmentVideoExporter():
             # Extract data from MongoDB
             print("LOOKING FOR DATA")
             result = self.db.find(query)
-            # print(result)
 
             print("FOUND QUERY!")
-            # ax1 =  plt.figure().add_subplot(projection='3d')
-            # ax1.axis('equal')
-            # sorted_result = sorted(result,  key=lambda x: (x['time']))
-            
+
             self.createVideo(end_query)
             
             self.json_file_name = str(round(time.time())) + "_queryts_" + str(end_query) + "_06mm.json"
             
-            apphended_metadata = copy.deepcopy(base_metadata)
-            
-            # with open(self.json_file_name, 'w') as json_file:
-                # json.dump(apphended_metadata, json_file, indent=4)
-                        
+
             frame_count = 1
             
             for document in result:
@@ -123,10 +112,7 @@ class DesengagmentVideoExporter():
                     ts = document['header']['timestampSec']
                     
                     # Gets the localization metadata
-                    localization_metadata = self.getMatchedMetaData(ts, localization_data, frame_count)
-                    
-                    with open(self.json_file_name, 'a+') as json_file:
-                        json.dump(localization_metadata, json_file, indent=4)
+                    localization_metadata[frame_count] = self.getMatchedMetaData(ts, localization_data, frame_count)
 
                     # Get the image
                     pil_im = self.stringToImage(document['data'])
@@ -134,13 +120,14 @@ class DesengagmentVideoExporter():
                     self.add_frame_06(rgb_im, base_metadata)
                     
                     frame_count += 1
-                    
-                # print(apphended_metadata)
-            
-            time.sleep(100)
-                
-            
 
+            to_json_file = {"header": base_metadata, "frames": localization_data}
+            
+            with open(self.json_file_name, 'a') as json_file:
+                json.dump(to_json_file, json_file, indent=4)
+                json_file.write('\n')
+                
+        
             if self.show_video:
                 
                 cv2.destroyAllWindows()
@@ -176,7 +163,6 @@ class DesengagmentVideoExporter():
         # closest_timestamp = timestamps[closest_index]
         
         localization_metadata = {
-            'frame': frame_count,
             'timestamp': to_match_data[closest_index][0],
             'x': to_match_data[closest_index][1],
             'y': to_match_data[closest_index][2],
@@ -187,10 +173,15 @@ class DesengagmentVideoExporter():
     
     
 class DecimalEncoder(json.JSONEncoder):
+    
     def default(self, o):
+        
         from decimal import Decimal
+        
         if isinstance(o, Decimal):
+            
             return str(o)  # Convert Decimal to string
+        
         return super(DecimalEncoder, self).default(o)  
 
 
