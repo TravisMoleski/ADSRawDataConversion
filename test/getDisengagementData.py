@@ -8,7 +8,10 @@ import base64
 import json
 import sys
 
+import utm
+
 from scipy.spatial.transform import Rotation as R
+import time
 
 import pyvista as pv
 import pyvistaqt as pvqt
@@ -38,11 +41,10 @@ print(dis_info)
 
 dis_time = dis_info['disengagement_times'][0]
 dis_dt   = dis_info['disengagement_tolerance']
-dis_dt = 30
+dis_dt = 5
 
 # Query to extract data (you can customize this based on your needs)
 # query = {'topic': '/apollo/localization/pose'}
-
 query = {
     # 'topic': '/apollo/prediction/perception_obstacles',
     'header.timestampSec':{"$gte": dis_time-dis_dt, "$lte":dis_time+dis_dt}
@@ -50,34 +52,45 @@ query = {
 # Extract data from MongoDB
 print("LOOKING FOR DATA")
 result = collection.find(query)
-
+# 
 p =  pvqt.BackgroundPlotter()
-# p.auto_update = False
-
-# init_position =[result[0]['pose']['position']['x'], result[0]['pose']['position']['y'],result[0]['pose']['position']['z']]
-init_position= [0,0,0]
-print('INIT',init_position)
-
+# p = pv.Plotter()
 p.show()  # Start visualisation, non-blocking call
+# p.show(auto_close=False, interactive_update=True)  # Start visualisation, non-blocking call
+print("CREATED PLOT")
 
-obs_rot = R.from_euler('xyz',[180,180,-35],degrees=True)
 
-# QCoreApplication.processEvents()
+get_im = True
+get_lidar = True
+get_obstacles = True
+get_pose = True
+get_gnss = True
+
+# tStart = time.time()
+
+sol_type = "NOT_QUERIED"
+lat = None
+lon = None
+std_2d = None
+driving_mode = None
 for document in result:
-    if document['topic'] == "/apollo/sensor/camera/front_6mm/image/compressed":
+    # loopStart = time.time()
+    # print(document['topic'],"\n")
+    if document['topic'] == "/apollo/sensor/camera/front_6mm/image/compressed" and get_im:
         pil_im = stringToImage(document['data'])
         rgb_im = toRGB(pil_im)
+
+        cv2.putText(rgb_im, sol_type, (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, ("(") + str(lat) + ', ' +str(lon) +  (")"), (10,100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, 'STD: '+ str(std_2d), (10,150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, str(driving_mode), (10,200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+
         cv2.imshow(str(document['topic']), rgb_im)
         cv2.waitKey(1)
 
-    if document['topic'] == "/apollo/localization/pose":
+    if document['topic'] == "/apollo/localization/pose" and get_pose:
         vehicle_position = document['pose']['position']
-
-        # print(document['pose'])
-        vehicle_position['x'] = vehicle_position['x']-init_position[0]
-        vehicle_position['y'] = vehicle_position['y']-init_position[1]
-        vehicle_position['z'] = vehicle_position['z']-init_position[2]
-
+        lat, lon = utm.to_latlon(vehicle_position['x'], vehicle_position['y'], 17,'S')
         roll  = document['pose']['eulerAngles']['x']
         pitch = document['pose']['eulerAngles']['y']
         yaw   = document['pose']['eulerAngles']['z'] + np.pi/2
@@ -88,58 +101,66 @@ for document in result:
         rotated = box_v.rotate_z(angle=np.rad2deg(yaw), point=[vehicle_position['x'],vehicle_position['y'],vehicle_position['z']])
         p.add_mesh(rotated, color='blue', show_edges=True)
 
-        # points = pv.PolyData(np.column_stack((vehicle_position['x'], vehicle_position['y'], vehicle_position['z'])))
-        # p.add_points(points,render_points_as_spheres=True, point_size=35.0,color='blue')
 
     if document['topic'] == '/apollo/sensor/velodyne32/PointCloud2':
-        p.clear()
-        x_master = []
-        y_master = []
-        z_master = []
+        # p.clear()
+        if get_lidar:
+            x_master = np.zeros(len(document['point']))
+            y_master = np.zeros(len(document['point']))
+            z_master = np.zeros(len(document['point']))
+            int_master = np.zeros(len(document['point']))
 
-        for point in range(len(document['point'])):
-            lPoint = [document['point'][point]['x'],document['point'][point]['y'],document['point'][point]['z']]
-            lPoint = vehicle_rot.apply(lPoint)
+            for point in range(len(document['point'])):
+                lPoint = [document['point'][point]['x'],document['point'][point]['y'],document['point'][point]['z']]
+                lPoint = vehicle_rot.apply(lPoint)
 
-            x_master.append(lPoint[0] + vehicle_position['x'])
-            y_master.append(lPoint[1] + vehicle_position['y'])
-            z_master.append(lPoint[2] + vehicle_position['z'])
+                x_master[point] =  (lPoint[0] + vehicle_position['x'])
+                y_master[point] =  (lPoint[1] + vehicle_position['y'])
+                z_master[point] =  (lPoint[2] + vehicle_position['z'])
+                int_master[point] =  (document['point'][point]['intensity'])
 
-        points = pv.PolyData(np.column_stack((x_master, y_master, z_master)))
-        p.add_points(points)
+            point_cloud = pv.PolyData(np.column_stack((x_master, y_master, z_master)))
+            point_cloud['colors'] = int_master
+            point_cloud.plot(point_cloud, cmap='jet', render_points_as_spheres=True)
+            p.add_points(point_cloud)
 
-    if document['topic'] == "/apollo/perception/obstacles":
-        x_Obmaster = []
-        y_Obmaster = []
-        z_Obmaster = []
+        # p.update()
 
+    if document['topic'] == "/apollo/perception/obstacles" and get_obstacles:
+        # p.clear()
+        # p.update()
         for obs in document['perceptionObstacle']:
             obs_point = np.array([obs['position']['x'],obs['position']['y'],obs['position']['z']])
-            # obs_point -= init_position
-            # obs_point = obs_rot.apply(obs_point)
-            # obs_point = vehicle_rot.apply(obs_point)
             if obs['type'] == 'VEHICLE':
                 c = 'red'
             else:
                 c = 'green'
-            # x_Obmaster.append(obs_point[0])
-            # y_Obmaster.append(obs_point[1])
-            # z_Obmaster.append(obs_point[2])
 
-            xlength = obs['length'] 
-            ylength = obs['width']  
-            zlength = obs['height']
-
-            boxO = pv.Cube(center=(obs_point),x_length=xlength, y_length=ylength, z_length=zlength)
-            boxRot = boxO.rotate_z(angle=np.rad2deg(yaw),point=obs_point)
+            boxO = pv.Cube(center=(obs_point),x_length=obs['length'] , y_length=obs['width'], z_length= obs['height'])
+            boxRot = boxO.rotate_z(angle=np.rad2deg(obs['theta']),point=obs_point)
             p.add_mesh(boxRot, color=c, show_edges=True)
 
-        # Opoints = pv.PolyData(np.column_stack((x_Obmaster, y_Obmaster, z_Obmaster)))
-        # p.add_points(Opoints,render_points_as_spheres=True, point_size=35.0,color=c)
+    if document['topic'] == "/apollo/sensor/gnss/best_pose" and get_gnss:
+        # p.clear()
+        sol_type =document['solType']
+        lat_std_gnss = document['latitudeStdDev']
+        lon_std_gnss = document['longitudeStdDev']
+        hgt_std_gnss = document['heightStdDev']
+        num_sat = document['numSatsInSolution']
+        std_2d = (lat_std_gnss + lon_std_gnss)/2
+        # print("SOLUTION TYPE", sol_type, "WITH 2D std (m)", std_2d)
 
-        # break
+    if document['topic'] == "/apollo/canbus/chassis":
+        driving_mode = document['drivingMode']
+        # print(document)
+
+    # loopEnd = time.time()
+    # rate_loop = 1 / (loopEnd - loopStart)
+    # print("LOOP RATE: ", rate_loop)
+    # time.sleep(.001)
+
     # p.update()
-    # p.show()
+    # p.show(auto_close=False, interactive_update=True)  # Start visualisation, non-blocking call
     QCoreApplication.processEvents()
 
 # Close the MongoDB connection
