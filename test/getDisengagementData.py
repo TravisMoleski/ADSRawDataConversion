@@ -26,6 +26,22 @@ def toRGB(image):
     return cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
 
 
+def drawPlots(dataList):
+    ncols = 1
+    nrows = len(dataList)
+    plt.rcParams.update({'font.size': 22})
+    # f = plt.figure()
+    f, axes = plt.subplots(nrows,ncols,squeeze=False)
+
+    for data in range(len(dataList)):
+        print(dataList[data]['name'])
+        axes[data][0].plot(dataList[data]['time'], dataList[data]['data'])
+        axes[data][0].set_xlabel(data_list[data]['x_label'])
+        axes[data][0].set_ylabel(data_list[data]['y_label'])
+        axes[data][0].grid(True)
+
+
+
 # Set up MongoDB connection
 client = pymongo.MongoClient("mongodb://127.0.0.1:27017")
 
@@ -41,7 +57,7 @@ print(dis_info)
 
 dis_time = dis_info['disengagement_times'][0]
 dis_dt   = dis_info['disengagement_tolerance']
-dis_dt = 5
+dis_dt = 2
 
 # Query to extract data (you can customize this based on your needs)
 # query = {'topic': '/apollo/localization/pose'}
@@ -73,6 +89,29 @@ lat = None
 lon = None
 std_2d = None
 driving_mode = None
+
+master_cloud_x = []
+master_cloud_y = []
+master_cloud_z = []
+master_cloud_i = []
+
+num_sat_obj = {
+    'time': [],
+    'data': [],
+    'name': "Tracked SVs",
+    'x_label': 'time (s)',
+    'y_label': 'SV Count'
+}
+
+std_obj = {
+    'time': [],
+    'data': [],
+    'name': "2D STD (m)",
+    'x_label': 'time (s)',
+    'y_label': 'GNSS Position STD (m)'
+}
+
+data_list = []
 for document in result:
     # loopStart = time.time()
     # print(document['topic'],"\n")
@@ -84,6 +123,9 @@ for document in result:
         cv2.putText(rgb_im, ("(") + str(lat) + ', ' +str(lon) +  (")"), (10,100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         cv2.putText(rgb_im, 'STD: '+ str(std_2d), (10,150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         cv2.putText(rgb_im, str(driving_mode), (10,200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, 'Experiment: '+dis_info['experimentID'], (10,250), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, dis_info['vehicleID'], (10,300), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(rgb_im, dis_info['other'], (10,1050), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
 
         cv2.imshow(str(document['topic']), rgb_im)
         cv2.waitKey(1)
@@ -97,9 +139,18 @@ for document in result:
 
         vehicle_rot = R.from_euler('xyz',[roll,pitch,yaw],degrees=False)
 
+        if driving_mode == 'COMPLETE_AUTO_DRIVE':
+            v_col = 'green'
+        elif driving_mode == 'EMERGENCY_MODE':
+            v_col = 'yellow'
+        elif driving_mode == None:
+            v_col = 'purple'
+        else:
+            v_col = 'red'
+
         box_v = pv.Cube(center=(vehicle_position['x'], vehicle_position['y'], vehicle_position['z']),x_length=5.18922 , y_length=2.29616, z_length=1.77546)
         rotated = box_v.rotate_z(angle=np.rad2deg(yaw), point=[vehicle_position['x'],vehicle_position['y'],vehicle_position['z']])
-        p.add_mesh(rotated, color='blue', show_edges=True)
+        p.add_mesh(rotated, color=v_col, show_edges=True)
 
 
     if document['topic'] == '/apollo/sensor/velodyne32/PointCloud2':
@@ -119,10 +170,15 @@ for document in result:
                 z_master[point] =  (lPoint[2] + vehicle_position['z'])
                 int_master[point] =  (document['point'][point]['intensity'])
 
-            point_cloud = pv.PolyData(np.column_stack((x_master, y_master, z_master)))
-            point_cloud['colors'] = int_master
-            point_cloud.plot(point_cloud, cmap='jet', render_points_as_spheres=True)
-            p.add_points(point_cloud)
+            master_cloud_x.extend(x_master)
+            master_cloud_y.extend(y_master)
+            master_cloud_z.extend(z_master)
+            master_cloud_i.extend(int_master)
+
+            # point_cloud = pv.PolyData(np.column_stack((x_master, y_master, z_master)))
+            # point_cloud['colors'] = int_master
+            # point_cloud.plot(point_cloud, cmap='jet', render_points_as_spheres=True)
+            # p.add_points(point_cloud)
 
         # p.update()
 
@@ -132,22 +188,30 @@ for document in result:
         for obs in document['perceptionObstacle']:
             obs_point = np.array([obs['position']['x'],obs['position']['y'],obs['position']['z']])
             if obs['type'] == 'VEHICLE':
-                c = 'red'
+                c = 'blue'
             else:
                 c = 'green'
-
             boxO = pv.Cube(center=(obs_point),x_length=obs['length'] , y_length=obs['width'], z_length= obs['height'])
             boxRot = boxO.rotate_z(angle=np.rad2deg(obs['theta']),point=obs_point)
             p.add_mesh(boxRot, color=c, show_edges=True)
 
     if document['topic'] == "/apollo/sensor/gnss/best_pose" and get_gnss:
-        # p.clear()
         sol_type =document['solType']
         lat_std_gnss = document['latitudeStdDev']
         lon_std_gnss = document['longitudeStdDev']
         hgt_std_gnss = document['heightStdDev']
+        
         num_sat = document['numSatsInSolution']
         std_2d = (lat_std_gnss + lon_std_gnss)/2
+
+        num_sat_obj['time'].append(document['header']['timestampSec'])
+        num_sat_obj['data'].append(document['numSatsInSolution'])
+
+        std_obj['time'].append(document['header']['timestampSec'])
+        std_obj['data'].append(std_2d)
+
+
+
         # print("SOLUTION TYPE", sol_type, "WITH 2D std (m)", std_2d)
 
     if document['topic'] == "/apollo/canbus/chassis":
@@ -158,11 +222,32 @@ for document in result:
     # rate_loop = 1 / (loopEnd - loopStart)
     # print("LOOP RATE: ", rate_loop)
     # time.sleep(.001)
-
     # p.update()
     # p.show(auto_close=False, interactive_update=True)  # Start visualisation, non-blocking call
+
     QCoreApplication.processEvents()
 
+data_list.append(num_sat_obj)
+data_list.append(std_obj)
+
+drawPlots(data_list)
+print(data_list)
+
+print("DRAWING MASTER CLOUD")
+point_cloud = pv.PolyData(np.column_stack((master_cloud_x, master_cloud_y, master_cloud_z)))
+point_cloud['intensity'] = master_cloud_i
+point_cloud.plot(point_cloud, cmap='jet', render_points_as_spheres=True)
+p.add_points(point_cloud)
+print("DREW CLOUD???")
+
+try:
+    while True:
+        QCoreApplication.processEvents()
+        plt.pause(0.001)
+except KeyboardInterrupt:
+    pass
+
+cv2.waitKey(0)
 # Close the MongoDB connection
 p.close()
 cv2.destroyAllWindows()
